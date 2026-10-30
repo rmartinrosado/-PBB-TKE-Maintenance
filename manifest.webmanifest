@@ -1,0 +1,19 @@
+{
+  "name": "PBB TKE Maintenance",
+  "short_name": "PBB TKE",
+  "description": "Gestión local de mantenimiento de pasarelas de embarque.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f5f8",
+  "theme_color": "#12304a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "lang": "es"
+}

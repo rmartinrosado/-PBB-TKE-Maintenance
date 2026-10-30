@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#12304a">
+  <meta name="description" content="Gestión de mantenimiento de pasarelas de embarque TKE.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <title>PBB TKE Maintenance</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brandmark">PBB</div>
+    <div><h1>TKE Maintenance</h1><p>Pasarelas de embarque · Registro local</p></div>
+  </header>
+  <nav class="tabs" aria-label="Secciones principales">
+    <button class="tab active" data-view="dashboard">Inicio</button>
+    <button class="tab" data-view="orders">Órdenes</button>
+    <button class="tab" data-view="history">Histórico</button>
+    <button class="tab" data-view="docs">Documentación</button>
+    <button class="tab" data-view="backup">Copias</button>
+  </nav>
+  <main>
+    <section class="view active" id="dashboard">
+      <div class="hero">
+        <p class="eyebrow">MANTENIMIENTO PBB</p>
+        <h2>Panel de trabajo</h2>
+        <p>Base inicial vacía. Añade órdenes y registros cuando estés preparado.</p>
+      </div>
+      <div class="stats">
+        <article class="stat"><span id="statOpen">0</span><small>Órdenes abiertas</small></article>
+        <article class="stat"><span id="statClosed">0</span><small>Órdenes cerradas</small></article>
+        <article class="stat"><span id="statHistory">0</span><small>Averías en histórico</small></article>
+      </div>
+      <article class="card">
+        <h3>Estado de la aplicación</h3>
+        <p id="offlineStatus">Comprobando disponibilidad sin conexión…</p>
+        <p class="muted">Los datos se guardan en este navegador. En esta versión no hay sincronización entre dispositivos ni base de datos remota configurada.</p>
+      </article>
+      <article class="card warning">
+        <h3>Seguridad técnica</h3>
+        <p>Consulta siempre los planos RCS vigentes y el procedimiento autorizado antes de intervenir. Esta aplicación no sustituye la documentación técnica ni los procedimientos de seguridad.</p>
+      </article>
+    </section>
+
+    <section class="view" id="orders">
+      <div class="section-heading"><div><p class="eyebrow">TRABAJO</p><h2>Órdenes de trabajo</h2></div><button class="primary" id="newOrderBtn">＋ Nueva orden</button></div>
+      <div id="ordersList" class="empty-state">No hay órdenes de trabajo. Pulsa «Nueva orden» para crear la primera.</div>
+      <form id="orderForm" class="card form hidden">
+        <h3 id="orderFormTitle">Nueva orden</h3>
+        <label>N.º de orden<input name="number" required placeholder="Ej. 600123"></label>
+        <label>Pasarela (PBB)<input name="pbb" required placeholder="Ej. 570"></label>
+        <label>Tipo de aviso<select name="type"><option>PAS</option><option>Preventivo</option><option>Correctivo</option><option>Inspección</option></select></label>
+        <label>Descripción de la avería<textarea name="fault" rows="3" placeholder="Describe el síntoma observado"></textarea></label>
+        <label>Comprobaciones realizadas<textarea name="checks" rows="3" placeholder="Registra medidas y resultados"></textarea></label>
+        <label>Estado<select name="status"><option value="Abierta">Abierta</option><option value="En curso">En curso</option><option value="Cerrada">Cerrada</option></select></label>
+        <div class="actions"><button type="button" class="secondary" id="cancelOrderBtn">Cancelar</button><button class="primary" type="submit">Guardar orden</button></div>
+      </form>
+    </section>
+
+    <section class="view" id="history">
+      <div class="section-heading"><div><p class="eyebrow">REGISTROS</p><h2>Histórico de averías</h2></div><button class="primary" id="newHistoryBtn">＋ Añadir registro</button></div>
+      <div id="historyList" class="empty-state">El histórico está vacío. No se han precargado averías ni soluciones.</div>
+      <form id="historyForm" class="card form hidden">
+        <h3>Nuevo registro de avería</h3>
+        <label>Pasarela (PBB)<input name="pbb" required placeholder="Ej. 570"></label>
+        <label>Fecha<input name="date" type="date"></label>
+        <label>Síntoma / alarma<input name="fault" required placeholder="Descripción de la incidencia"></label>
+        <label>Diagnóstico y solución<textarea name="solution" rows="4" placeholder="Incluye comprobaciones y resultado confirmado"></textarea></label>
+        <div class="actions"><button type="button" class="secondary" id="cancelHistoryBtn">Cancelar</button><button class="primary" type="submit">Guardar registro</button></div>
+      </form>
+    </section>
+
+    <section class="view" id="docs">
+      <div class="section-heading"><div><p class="eyebrow">REFERENCIAS</p><h2>Documentación RCS</h2></div></div>
+      <article class="card">
+        <h3>Biblioteca documental</h3>
+        <p>Añade aquí copias de planos, esquemas y manuales autorizados. Esta versión no incluye documentación técnica precargada.</p>
+        <label class="file-picker">Seleccionar documentos<input type="file" id="docFiles" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.doc,.docx,.xls,.xlsx"></label>
+        <p class="muted">Los archivos seleccionados se muestran durante esta sesión; no se guardan dentro de la aplicación ni se sincronizan.</p>
+        <ul id="docList" class="doc-list"></ul>
+      </article>
+      <article class="card warning"><h3>Importante</h3><p>No se mostrarán referencias de bornes, módulos o conductores sin cotejarlas con el plano correcto de la pasarela y su revisión vigente.</p></article>
+    </section>
+
+    <section class="view" id="backup">
+      <div class="section-heading"><div><p class="eyebrow">DATOS</p><h2>Copias de seguridad</h2></div></div>
+      <article class="card">
+        <h3>Exportar datos</h3><p>Descarga órdenes e histórico guardados en este navegador en un archivo JSON.</p>
+        <button class="primary" id="exportBtn">Exportar copia JSON</button>
+      </article>
+      <article class="card">
+        <h3>Importar copia</h3><p>Restaura una copia JSON exportada previamente. Los registros actuales se reemplazarán.</p>
+        <label class="file-picker">Elegir archivo JSON<input type="file" id="importFile" accept=".json,application/json"></label>
+      </article>
+      <article class="card danger"><h3>Borrar datos locales</h3><p>Elimina todas las órdenes e incidencias guardadas en este navegador.</p><button class="danger-button" id="clearBtn">Borrar datos locales</button></article>
+    </section>
+  </main>
+  <footer><span>PBB TKE Maintenance</span><span>Versión 1.0 · Base vacía</span></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
