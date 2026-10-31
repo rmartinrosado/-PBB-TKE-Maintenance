@@ -1,11 +1,11 @@
 {
-  "name": "PBB TKE Maintenance",
-  "short_name": "PBB TKE",
+  "name": "PBB TKE Maintenance v6",
+  "short_name": "PBB TKE v6",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f4f5f9",
-  "theme_color": "#252c45",
+  "theme_color": "#182537",
   "lang": "es",
   "icons": [
     {
