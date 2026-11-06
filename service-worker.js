@@ -1,5 +1,5 @@
-const CACHE='pbb-tke-diagnostic-v18';
-const FILES=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon.svg','./tke-logo.svg','./pbb-splash.jpg?v=4'];
+const CACHE='pbb-tke-diagnostic-v19';
+const FILES=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon.svg','./tke-logo.svg','./98CB4AC6-8175-4F03-ABBD-6699E5680AB8.png?v=1'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('pbb-tke-')&&key!==CACHE).map(key=>caches.delete(key)))));self.clients.claim();});
 self.addEventListener('fetch',event=>{if(event.request.method!=='GET')return;event.respondWith((async()=>{const cache=await caches.open(CACHE);try{const response=await fetch(event.request);if(response&&response.ok)await cache.put(event.request,response.clone());return response;}catch(error){const cached=await cache.match(event.request);if(cached)return cached;if(event.request.mode==='navigate')return(await cache.match('./index.html'))||Response.error();return Response.error();}})());});
