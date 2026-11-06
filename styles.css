@@ -28,3 +28,13 @@ header{display:flex;align-items:center;justify-content:flex-start;gap:12px;backg
 #splash-screen .splash-content{width:100%;height:100%;display:grid;place-items:center;gap:0;}
 #splash-screen .splash-image{display:block;width:100%;height:auto;max-height:100%;aspect-ratio:3/1;object-fit:contain;object-position:center;}
 #splash-screen .splash-progress,#splash-screen .splash-version{display:none!important;}
+
+
+/* Barra de progreso del splash: duración de cinco minutos; colores del logotipo TKE. */
+#splash-screen{padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);}
+#splash-screen .splash-content{width:min(100%,1200px);height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;}
+#splash-screen .splash-image{display:block;width:100%;height:auto;max-height:calc(100dvh - 190px);aspect-ratio:3/1;object-fit:contain;object-position:center;}
+#splash-screen .splash-progress{display:flex!important;width:min(82%,460px);align-items:center;gap:12px;color:#fff;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;}
+#splash-screen .splash-progress-track{height:10px;flex:1;overflow:hidden;border-radius:20px;background:#ffffff35;box-shadow:inset 0 1px 3px #0005;}
+#splash-screen .splash-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#7b16c8 0%,#e33b82 48%,#ff790d 100%);border-radius:20px;transition:width .1s linear;}
+#splash-screen #splash-progress-value{min-width:42px;text-align:right;color:#fff;}
