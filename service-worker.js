@@ -1,4 +1,4 @@
-const CACHE='pbb-tke-diagnostic-v19';
+const CACHE='pbb-tke-diagnostic-v20';
 const FILES=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon.svg','./tke-logo.svg','./98CB4AC6-8175-4F03-ABBD-6699E5680AB8.png?v=1'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('pbb-tke-')&&key!==CACHE).map(key=>caches.delete(key)))));self.clients.claim();});
