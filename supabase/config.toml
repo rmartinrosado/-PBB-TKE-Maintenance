@@ -1,0 +1,2 @@
+[functions.claude-diagnose]
+verify_jwt = true
