@@ -1,43 +1,36 @@
-# Activar el análisis con Claude en Supabase
+# Despliegue automático de Claude en Supabase
 
-La aplicación web no puede desplegar por sí sola una Edge Function ni guardar una clave privada de Anthropic. Este paso se realiza una sola vez en el proyecto Supabase.
+He añadido el workflow de GitHub Actions:
+`.github/workflows/deploy-claude.yml`
 
-## 1. Añadir la clave privada de Anthropic
+## 1. Configurar los secretos de GitHub (una sola vez)
 
-En Supabase abre **Project Settings → Edge Functions → Secrets** y crea:
+Abre el repositorio → **Settings → Secrets and variables → Actions → New repository secret** y crea:
 
-- Nombre: `ANTHROPIC_API_KEY`
-- Valor: tu clave privada de Anthropic (empieza normalmente por `sk-ant-`).
+- **SUPABASE_ACCESS_TOKEN**: token personal de acceso de Supabase. Se crea en Supabase, en Account → Access Tokens.
+- **SUPABASE_PROJECT_REF**: identificador del proyecto Supabase (solo la referencia, no la URL completa).
 
-No introduzcas esta clave en la PWA, en GitHub, en el SQL Editor ni en el repositorio. No uses la clave pública anon de Supabase como clave de Anthropic.
+No publiques estos valores ni los pegues en archivos, commits, issues o chats.
 
-## 2. Desplegar la función actualizada
+## 2. Configurar la clave privada de Anthropic en Supabase
 
-Desde un ordenador con Node.js, abre una terminal en una carpeta de trabajo y ejecuta:
+En el proyecto correcto, abre **Project Settings → Edge Functions → Secrets** y añade:
 
-```bash
-npx supabase login
-npx supabase link --project-ref qwhzwzaaisqmlsttkgsp
-npx supabase functions deploy claude-diagnose --project-ref qwhzwzaaisqmlsttkgsp
-```
+- **ANTHROPIC_API_KEY**: tu clave privada de Anthropic.
 
-El código que se debe desplegar está en:
-`supabase/functions/claude-diagnose/index.ts`
+Este secreto es independiente de los dos secretos de GitHub. El workflow no puede crearlo ni leerlo.
 
-La configuración `supabase/config.toml` mantiene la verificación JWT activada. No la desactives.
+## 3. Ejecutar el despliegue
 
-## 3. Probar
+Después de guardar los dos secretos de GitHub:
+1. Abre **Actions** en el repositorio.
+2. Selecciona **Deploy Claude Edge Function**.
+3. Pulsa **Run workflow**.
 
-1. Abre la PWA publicada y pulsa **Recargar y actualizar**.
-2. En Documentación RCS, comprueba que sigues con sesión iniciada.
-3. Selecciona el PDF que ya aparece en Documentos disponibles.
-4. Introduce PBB, alarma y una consulta concreta.
-5. Pulsa **Analizar con Claude**.
+También se desplegará automáticamente cuando se modifique la función en la rama `main`.
 
-Si falla, la versión nueva muestra el mensaje devuelto por la función (por ejemplo, secreto ausente, función no desplegada, sesión caducada, documento sin texto indexado o error de Anthropic).
+## 4. Verificar
 
-## Importante
+La ejecución debe terminar en verde en GitHub Actions. Después, prueba **Analizar con Claude** desde la PWA con sesión activa y un documento con texto indexado seleccionado.
 
-- No es necesario volver a ejecutar `document_library.sql` si la biblioteca ya muestra documentos privados.
-- Los PDF escaneados sin capa de texto necesitan OCR antes de poder consultarse con el índice actual.
-- La barra de progreso de subida confirma la transferencia del archivo; no garantiza por sí sola que el texto se haya indexado.
+Si falta `ANTHROPIC_API_KEY` en Supabase, la función podrá desplegarse, pero el análisis devolverá un error indicando que falta ese secreto.
