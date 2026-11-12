@@ -1,5 +1,5 @@
-const CACHE='pbb-tke-private-v32';
-const FILES=['./','./index.html','./styles.css','./app.js','./library.js','./cloud-sync.js','./lmra.js','./manifest.webmanifest','./icon.svg','./tke-logo.svg','./98CB4AC6-8175-4F03-ABBD-6699E5680AB8.png?v=1'];
+const CACHE='pbb-tke-private-v33';
+const FILES=['./','./index.html','./styles.css?v=1.8.6','./app.js?v=1.8.6','./library.js?v=1.8.6','./cloud-sync.js?v=1.8.6','./lmra.js','./manifest.webmanifest','./icon.svg','./tke-logo.svg','./98CB4AC6-8175-4F03-ABBD-6699E5680AB8.png?v=1'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('pbb-tke-')&&key!==CACHE).map(key=>caches.delete(key)))));self.clients.claim();});
 self.addEventListener('fetch',event=>{if(event.request.method!=='GET')return;event.respondWith((async()=>{const cache=await caches.open(CACHE);try{const response=await fetch(event.request);if(response&&response.ok)await cache.put(event.request,response.clone());return response;}catch(error){const cached=await cache.match(event.request);if(cached)return cached;if(event.request.mode==='navigate')return(await cache.match('./index.html'))||Response.error();return Response.error();}})());});
