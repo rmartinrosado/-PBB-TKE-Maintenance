@@ -107,3 +107,19 @@ footer #updateApp:disabled{opacity:.65}
 @media(max-width:700px){main{padding:19px 15px 34px}.tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tiles button{min-height:155px;padding:15px}.ico{width:44px;height:44px;margin-bottom:12px}.panel{padding:16px;border-radius:16px}.hero{padding:24px 21px;border-radius:18px}}
 @media(max-width:390px){header{gap:10px;padding-left:13px;padding-right:13px}.tke-logo{flex-basis:94px;width:94px;height:42px}.brand b{font-size:13px;letter-spacing:.55px}.brand small{font-size:7px;letter-spacing:.85px}header button{flex-basis:39px;width:39px;height:39px}.tiles button{min-height:146px;padding:13px}.tiles b{font-size:12px}.tiles small{font-size:10px}.title{align-items:flex-start;flex-direction:column}footer{padding-left:15px;padding-right:15px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
+/* Dashboard operativo · 1.5.0 */
+.dashboard-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.kpi{display:flex;flex-direction:column;gap:9px;min-height:105px;padding:16px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,#fff,#f4f8fc)}
+.kpi span{font-size:11px;line-height:1.4;font-weight:750;color:var(--muted)}
+.kpi strong{font-size:30px;line-height:1;color:var(--navy-900);font-variant-numeric:tabular-nums}
+.kpi-open{border-top:3px solid var(--orange)}
+.dashboard-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dashboard-columns .card{margin:0}
+.dash-row{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.dash-row:last-child{border-bottom:0}
+.dash-row b{font-size:11px;color:#1d3c58}
+.dash-row span{font-size:10px;color:var(--blue-600);font-weight:800;text-align:right}
+.dash-row small{grid-column:1/-1;font-size:10px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
+.dashboard-note{margin:14px 2px 0;font-size:10px;line-height:1.5;color:var(--muted)}
+@media(max-width:700px){.dashboard-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.kpi{min-height:92px;padding:13px}.kpi strong{font-size:26px}.dashboard-columns{grid-template-columns:1fr}}
