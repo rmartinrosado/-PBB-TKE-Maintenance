@@ -39,4 +39,4 @@ jobs:
             echo "::error::Missing GitHub Actions secret SUPABASE_PROJECT_REF"
             exit 1
           fi
-          supabase functions deploy claude-diagnose --project-ref "$SUPABASE_PROJECT_REF"
+          supabase functions deploy claude-diagnose --project-ref qwhzwzaaisqmlsttkgsp --yes
