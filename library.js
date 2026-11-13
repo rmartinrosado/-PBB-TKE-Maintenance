@@ -30,7 +30,7 @@ async function list(){
  await ensure();
  const {data,error}=await sb.from("documents").select("*").order("created_at",{ascending:false});if(error)throw error;
  docs=data||[];
- $("#docList").innerHTML=docs.length?docs.map(d=>`<label class="docrow"><input type="checkbox" class="docpick" value="${esc(d.id)}" checked><span><b>${esc(d.title)}</b><small>${esc(d.document_type)} · PBB: ${esc(d.pbb_scope)} · Rev: ${esc(d.revision||"No indicada")} · ${new Date(d.created_at).toLocaleDateString("es-ES")}</small></span><button type="button" data-open="${esc(d.id)}" class="mini secondary">Abrir</button><button type="button" data-del="${esc(d.id)}" class="mini danger">Eliminar</button></label>`).join(""):"<p class='sub'>Biblioteca vacía. Sube el primer plano o manual.</p>";
+ $("#docList").innerHTML=docs.length?docs.map(d=>`<label class="docrow"><input type="checkbox" class="docpick" value="${esc(d.id)}" ${docAllowed(d)?"checked":""} ${docAllowed(d)?"":"disabled"}><span><b>${esc(d.title)}</b><small>${esc(d.document_type)} · PBB: ${esc(d.pbb_scope)} · Rev: ${esc(d.revision||"No indicada")} · ${new Date(d.created_at).toLocaleDateString("es-ES")}</small></span><button type="button" data-open="${esc(d.id)}" class="mini secondary">Abrir</button><button type="button" data-del="${esc(d.id)}" class="mini danger">Eliminar</button></label>`).join(""):"<p class='sub'>Biblioteca vacía. Sube el primer plano o manual.</p>";
  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeDoc(b.dataset.del).catch(e=>say(e.message)));
  document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDoc(b.dataset.open).catch(e=>say(e.message)));
  refreshDocChecks();say(`Sesión activa · ${docs.length} documentos privados · biblioteca filtrada por posición PBB`);
