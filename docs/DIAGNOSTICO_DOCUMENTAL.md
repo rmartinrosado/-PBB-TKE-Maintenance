@@ -36,9 +36,9 @@
 - Indexación multimodal de esquemas eléctricos y páginas gráficas.
 - Búsqueda híbrida (texto + referencias + páginas + tipo de documento).
 - Versionado y control de vigencia documental.
-- Validación del ámbito en servidor Edge Function, no solo en la interfaz.
+- Validación del ámbito en servidor Edge Function, además del filtrado de interfaz (implementada en `supabase/functions/claude-diagnose/index.ts`; pendiente de desplegar en el proyecto Supabase).
 - Registro de trazabilidad de cada fragmento citado por Claude.
 - Pruebas de regresión con casos sintéticos y revisión de técnico responsable.
 
 ## Estado y limitación de esta entrega
-La V1.12.0 implementa clasificación de ámbito en la interfaz, filtrado de documentos antes de la consulta y esquema de metadatos/indexación. La validación del ámbito en el servidor y el análisis de planos escaneados todavía requieren implementación y pruebas. El filtrado de cliente no debe considerarse una barrera de seguridad frente a llamadas manipuladas.
+La V1.12.1 incorpora validación de ámbito en la Edge Function: comprueba usuario propietario, posición PBB, biblioteca declarada y ámbito real de cada documento antes de recuperar fragmentos. La función rechaza mezclas de documentación incompatibles. El prompt exige trazabilidad documental, separación de hechos/hipótesis/pruebas, valores nominales solo si están en fuente y actuación segura.\n\nIMPORTANTE: el código de la Edge Function está actualizado en GitHub, pero no se ha desplegado en Supabase desde esta sesión. Hasta desplegarlo, el servidor en producción puede seguir ejecutando la versión anterior. Tampoco están implementados todavía OCR de planos escaneados, análisis visual de esquemas, búsqueda híbrida ni validación completa con casos de prueba. La interfaz por sí sola no garantiza el aislamiento documental.
