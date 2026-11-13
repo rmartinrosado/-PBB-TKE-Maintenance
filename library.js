@@ -106,7 +106,7 @@ async function removeDoc(id){if(!confirm("¿Eliminar el documento privado y su �
 async function analyze(){
  const button=$("#claudeRun"),answer=$("#claudeAnswer"),sources=$("#claudeSources");
  try{
-  await ensure();const pbb=currentPbb();if(!/^\\d{3}$/.test(pbb))throw Error("Introduce el número de posición PBB (tres cifras).");const special=A380_PBBS.has(pbb);const applicable=docs.filter(d=>docAllowed(d,pbb));const ids=[...document.querySelectorAll(".docpick:checked")].map(x=>x.value).filter(id=>applicable.some(d=>d.id===id));
+  await ensure();const pbb=currentPbb();if(!/^\d{3}$/.test(pbb))throw Error("Introduce el número de posición PBB (tres cifras).");const special=A380_PBBS.has(pbb);const applicable=docs.filter(d=>docAllowed(d,pbb));const ids=[...document.querySelectorAll(".docpick:checked")].map(x=>x.value).filter(id=>applicable.some(d=>d.id===id));
   if(!ids.length)throw Error(special?"No hay documentos seleccionados de la biblioteca especial A380 para PBB-"+pbb+". La biblioteca común queda excluida.":"No hay documentos seleccionados de la biblioteca común o específica para PBB-"+pbb+".");const question=$("#claudeQuestion").value.trim();if(!question)throw Error("Escribe qué necesitas comprobar.");
   button.disabled=true;button.textContent="Analizando…";answer.textContent="Enviando la consulta y los fragmentos indexados a Claude. Espera…";sources.innerHTML="";say("Consultando documentos seleccionados con Claude…");
   const {data,error}=await sb.functions.invoke("claude-diagnose",{body:{question,documentIds:ids,caseInfo:{pbb,documentLibrary:special?"A380_SPECIAL":"COMMON",order:$("#caseOrder").value,alarm:$("#caseAlarm").value,fieldObservations:$("#caseObs").value}}});
@@ -122,6 +122,17 @@ async function boot(){
  try{if(url&&key){config();const {data,error}=await sb.auth.getSession();if(error)throw error;session=data.session;if(session)await list()}}
  catch(e){say("Biblioteca: "+(e.message||String(e)))}
 }
+
+// Copia automáticamente los datos del caso nuevo al formulario Claude.
+$("#caseForm")?.addEventListener("submit",()=>{
+ const f=new FormData($("#caseForm"));
+ $("#casePbb").value=String(f.get("pbb")||"").trim().replace(/^PBB[- ]?/i,"");
+ $("#caseOrder").value=String(f.get("number")||"").trim();
+ $("#caseAlarm").value=String(f.get("fault")||"").trim();
+ const conditions=String(f.get("conditions")||"").trim();
+ $("#caseObs").value=conditions?("Condiciones de aparición: "+conditions):"";
+ refreshDocChecks();
+});
 $("#sbConnect").onclick=async()=>{try{const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;await list().catch(e=>say("Sesión iniciada; biblioteca: "+e.message))}catch(e){say(e.message)}};
 $("#sbRegister").onclick=async()=>{try{const c=config(),{error}=await c.auth.signUp({email:$("#sbEmail").value.trim(),password:$("#sbPassword").value});if(error)throw error;say("Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.")}catch(e){say(e.message)}};
 $("#sbLogout").onclick=async()=>{try{if(sb)await sb.auth.signOut();session=null;docs=[];$("#docList").innerHTML="";say("Sesión cerrada.")}catch(e){say(e.message)}};
