@@ -1,6 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=s=>document.querySelector(s);
 let sb=null,session=null,docs=[],clientConfig="";
+const A380_PBBS=new Set(["504","507","508"]);
+const currentPbb=()=>String($("#casePbb")?.value||"").trim().replace(/^PBB[- ]?/i,"");
+function docAllowed(d,pbb=currentPbb()){const scope=String(d.pbb_scope||"GENERAL").trim().toUpperCase();if(A380_PBBS.has(pbb))return scope==="A380_SPECIAL"||scope===pbb;if(scope==="A380_SPECIAL")return false;if(scope==="COMMON"||scope==="GENERAL"||scope==="")return true;return scope===pbb;}
+function refreshDocChecks(){document.querySelectorAll(".docpick").forEach(el=>{const d=docs.find(x=>x.id===el.value),ok=d&&docAllowed(d);el.disabled=!ok;el.checked=!!ok;const row=el.closest(".docrow");if(row){row.style.opacity=ok?"1":".42";row.title=ok?"Documento aplicable":"No corresponde a la biblioteca de esta posición";}})}
 const say=s=>{const n=$("#libStatus");if(n)n.textContent=s};
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function config(){
@@ -29,7 +33,7 @@ async function list(){
  $("#docList").innerHTML=docs.length?docs.map(d=>`<label class="docrow"><input type="checkbox" class="docpick" value="${esc(d.id)}" checked><span><b>${esc(d.title)}</b><small>${esc(d.document_type)} · PBB: ${esc(d.pbb_scope)} · Rev: ${esc(d.revision||"No indicada")} · ${new Date(d.created_at).toLocaleDateString("es-ES")}</small></span><button type="button" data-open="${esc(d.id)}" class="mini secondary">Abrir</button><button type="button" data-del="${esc(d.id)}" class="mini danger">Eliminar</button></label>`).join(""):"<p class='sub'>Biblioteca vacía. Sube el primer plano o manual.</p>";
  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeDoc(b.dataset.del).catch(e=>say(e.message)));
  document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDoc(b.dataset.open).catch(e=>say(e.message)));
- say(`Sesión activa · ${docs.length} documentos privados`);
+ refreshDocChecks();say(`Sesión activa · ${docs.length} documentos privados · biblioteca filtrada por posición PBB`);
 }
 async function extract(file){
  if(file.type==="text/plain")return [{page:"TXT",text:await file.text()}];
@@ -79,7 +83,7 @@ async function upload(){
   uploadProgress(0,"Preparando archivo",`${file.name} · ${(file.size/1048576).toFixed(2)} MB`);
   await uploadWithProgress(file,path,user.access_token,key,url);uploadedPath=path;
   uploadProgress(100,"Archivo transferido","Guardando ficha del documento…");
-  const meta={id,user_id:user.user.id,title:$("#docTitle").value.trim()||file.name,file_name:file.name,storage_path:path,mime_type:ext==="pdf"?"application/pdf":"text/plain",file_size:file.size,pbb_scope:$("#docPbb").value.trim()||"GENERAL",document_type:$("#docType").value,revision:$("#docRevision").value.trim()||null,notes:$("#docNotes").value.trim()||null};
+  const meta={id,user_id:user.user.id,title:$("#docTitle").value.trim()||file.name,file_name:file.name,storage_path:path,mime_type:ext==="pdf"?"application/pdf":"text/plain",file_size:file.size,pbb_scope:$("#docPbb").value.trim()||"COMMON",document_type:$("#docType").value,revision:$("#docRevision").value.trim()||null,notes:$("#docNotes").value.trim()||null};
   const {error:dbErr}=await sb.from("documents").insert(meta);if(dbErr)throw dbErr;metadataSaved=true;
   uploadProgress(100,"Archivo guardado · Indexando","Extrayendo texto para que Claude pueda consultarlo…");
   try{
@@ -105,7 +109,7 @@ async function analyze(){
   await ensure();const ids=[...document.querySelectorAll(".docpick:checked")].map(x=>x.value);
   if(!ids.length)throw Error("Selecciona al menos un documento.");const question=$("#claudeQuestion").value.trim();if(!question)throw Error("Escribe qué necesitas comprobar.");
   button.disabled=true;button.textContent="Analizando…";answer.textContent="Enviando la consulta y los fragmentos indexados a Claude. Espera…";sources.innerHTML="";say("Consultando documentos seleccionados con Claude…");
-  const {data,error}=await sb.functions.invoke("claude-diagnose",{body:{question,documentIds:ids,caseInfo:{pbb:$("#casePbb").value,order:$("#caseOrder").value,alarm:$("#caseAlarm").value,fieldObservations:$("#caseObs").value}}});
+  const {data,error}=await sb.functions.invoke("claude-diagnose",{body:{question,documentIds:ids,caseInfo:{pbb,documentLibrary:special?"A380_SPECIAL":"COMMON",order:$("#caseOrder").value,alarm:$("#caseAlarm").value,fieldObservations:$("#caseObs").value}}});
   if(error){let detail=error.message||"Error al llamar a la función.";try{const response=error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();let payload={};try{payload=JSON.parse(raw)}catch{}detail=payload.error||payload.message||raw.slice(0,1200)||detail;if(response.status===404)detail="La función claude-diagnose no está desplegada en este proyecto Supabase (HTTP 404).";if(response.status===401)detail="Sesión Supabase no válida o caducada. Cierra sesión y vuelve a iniciarla.";}}catch{}throw Error(detail)}
   if(data?.error)throw Error(data.error);if(!data?.answer)throw Error("La función se ejecutó, pero Claude no devolvió texto. Revisa los registros de Edge Functions.");
   answer.textContent=data.answer;sources.innerHTML=(data.sources||[]).map(s=>`<li>${esc(s.document)} · Rev. ${esc(s.revision)} · Hoja/página ${esc(s.page)}</li>`).join("");say("Análisis recibido. Verifica cada referencia contra el documento original.");
@@ -121,5 +125,5 @@ async function boot(){
 $("#sbConnect").onclick=async()=>{try{const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;await list().catch(e=>say("Sesión iniciada; biblioteca: "+e.message))}catch(e){say(e.message)}};
 $("#sbRegister").onclick=async()=>{try{const c=config(),{error}=await c.auth.signUp({email:$("#sbEmail").value.trim(),password:$("#sbPassword").value});if(error)throw error;say("Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.")}catch(e){say(e.message)}};
 $("#sbLogout").onclick=async()=>{try{if(sb)await sb.auth.signOut();session=null;docs=[];$("#docList").innerHTML="";say("Sesión cerrada.")}catch(e){say(e.message)}};
-$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));
+$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
 boot();
