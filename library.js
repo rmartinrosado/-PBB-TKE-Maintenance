@@ -131,6 +131,8 @@ $("#caseForm")?.addEventListener("submit",()=>{
  $("#caseAlarm").value=String(f.get("fault")||"").trim();
  const conditions=String(f.get("conditions")||"").trim();
  $("#caseObs").value=conditions?("Condiciones de aparición: "+conditions):"";
+ const q=$("#claudeQuestion");
+ if(q&&!q.value.trim())q.value="Analiza desde cero la alarma: "+String(f.get("fault")||"").trim()+". Para PBB-"+$("#casePbb").value+", identifica en la documentación seleccionada el origen y destino del elemento implicado, las referencias y bornes acreditados, y propone comprobaciones discriminantes seguras. Separa hechos documentados, hipótesis y datos pendientes; cita documento y página. No inventes conexiones ni anules seguridades.";
  refreshDocChecks();
 });
 $("#sbConnect").onclick=async()=>{try{const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;await list().catch(e=>say("Sesión iniciada; biblioteca: "+e.message))}catch(e){say(e.message)}};
