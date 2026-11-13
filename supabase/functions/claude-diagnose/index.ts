@@ -17,7 +17,7 @@ Deno.serve(async(req)=>{
   const {data:{user},error:userErr}=await sb.auth.getUser();
   if(userErr||!user)return json({error:"La sesión de Supabase no es válida o ha caducado. Cierra sesión y vuelve a entrar."},401);
   const body=await req.json(),question=String(body.question||"").trim().slice(0,8000),caseInfo=body.caseInfo&&typeof body.caseInfo==="object"?body.caseInfo:{};
-  const pbb=normPbb(caseInfo.pbb);if(!/^\\d{3}$/.test(pbb))return json({error:"La posición PBB es obligatoria y debe tener tres cifras."},400);
+  const pbb=normPbb(caseInfo.pbb);if(!/^\d{3}$/.test(pbb))return json({error:"La posición PBB es obligatoria y debe tener tres cifras."},400);
   const expectedLibrary=A380.has(pbb)?"A380_SPECIAL":"COMMON";
   if(caseInfo.documentLibrary&&caseInfo.documentLibrary!==expectedLibrary)return json({error:"La biblioteca declarada no corresponde a PBB-"+pbb+". Se esperaba "+expectedLibrary+"."},400);
   const ids=Array.isArray(body.documentIds)?[...new Set(body.documentIds.filter((x:any)=>typeof x==="string").slice(0,30))]:[];
