@@ -19,7 +19,7 @@
    const n=norm(pbb.value),specialPbb=special.has(n);
    let note=document.querySelector("#pbbLibraryNotice");
    if(!note){note=document.createElement("p");note.id="pbbLibraryNotice";note.className="warning";pbb.closest("label")?.insertAdjacentElement("afterend",note);}
-   if(!/^\\d{3}$/.test(n)){note.textContent="Introduce una posición PBB de tres cifras. La biblioteca todavía no se ha seleccionado.";return;}
+   if(!/^[0-9]{3}$/.test(n)){note.textContent="Introduce una posición PBB de tres cifras. La biblioteca todavía no se ha seleccionado.";return;}
    note.textContent=specialPbb
     ?"BIBLIOTECA ESPECIAL A380 · PBB-"+n+". Solo se consultarán documentos A380 y documentación específica de esa posición. La biblioteca común queda excluida."
     :"BIBLIOTECA COMÚN · PBB-"+n+". Se consultarán documentos comunes y, si existen, documentos específicos de esa posición. Los documentos A380 quedan excluidos.";
