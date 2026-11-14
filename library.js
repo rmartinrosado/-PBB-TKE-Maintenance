@@ -371,7 +371,8 @@ async function analyze(){
  finally{button.disabled=false;button.textContent="Analizar con Claude"}
 }
 async function refreshLibrarySession(){const listNode=$("#docList");try{const c=getSupabaseClient();sb=c;const {data,error}=await c.auth.getSession();if(error)throw error;session=data.session;if(!session){docs=[];if(listNode)listNode.innerHTML='<p class="sub">No hay una sesión activa. Abre Mi cuenta TKE e inicia sesión.</p>';return;}await list();}catch(e){const message=e?.message||String(e);if(listNode)listNode.innerHTML='<p class="sub">No se pudo cargar la biblioteca privada: '+esc(message)+'</p>';say("Biblioteca: "+message);}}\nwindow.addEventListener("pbb-auth-state-changed",()=>refreshLibrarySession());
-window.addEventListener("pageshow",()=>refreshLibrarySession());\nwindow.addEventListener("pbb-supabase-config-changed",()=>refreshLibrarySession());
+window.addEventListener("pageshow",()=>refreshLibrarySession());
+window.addEventListener("pbb-supabase-config-changed",()=>refreshLibrarySession());
 async function boot(){
  const url=localStorage.getItem("pbb-sb-url"),key=localStorage.getItem("pbb-sb-anon");
  if(url&&$("#sbUrl"))$("#sbUrl").value=url;if(key&&$("#sbKey"))$("#sbKey").value=key;
