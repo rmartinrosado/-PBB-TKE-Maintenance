@@ -259,8 +259,8 @@ async function ocrRcsCurrentPage(){
   const deviceRefs=[...new Set((normalizedText.match(devicePattern)||[]).map(x=>x.replace(/\s+/g,"").replace(/--+/g,"-")))];
   const conductorRefs=[...new Set(ocrWords.filter(w=>/^\d{3}$/.test(w.t)&&w.c>=55).map(w=>w.t))];
   const cableRefs=[...new Set((normalizedText.match(/\b(?:H07RN-F|\d{1,2}\s*[xX]\s*\d+(?:[,.]\d+)?|\d{1,2}\s*[xX]\s*\d+\s*\+\s*C)\b/g)||[]).map(x=>x.replace(/\s+/g,"")))];
-  const references=[...new Set([...deviceRefs,...conductorRefs,...cableRefs])];
   const sensorRefs=[...new Set((normalizedText.match(/\+?C\s*-\s*B\s*\d{1,2}/g)||[]).map(x=>x.replace(/\s+/g,"").replace(/^C-/,"+C-")))];
+  const references=[...new Set([...deviceRefs,...sensorRefs,...conductorRefs,...cableRefs])];
   const referenceClasses={equipos:deviceRefs,sensores:sensorRefs,conductores:conductorRefs,cables:cableRefs};
   const referenceValidation=references.map(reference=>{const key=reference.toUpperCase().replace(/[^A-Z0-9]/g,"");const hits=[...nativeWords,...ocrWords].filter(w=>w.t.toUpperCase().replace(/[^A-Z0-9]/g,"")===key);const pdfHits=hits.filter(w=>w.source==="PDF"),ocrHits=hits.filter(w=>String(w.source||"").startsWith("OCR"));return {reference,pdfCount:pdfHits.length,ocrCount:ocrHits.length,agreement:pdfHits.length>0&&ocrHits.length>0?"PDF + OCR":pdfHits.length?"Solo PDF":ocrHits.length?"Solo OCR":"Sin evidencia posicional",confidence:hits.length?Math.round(hits.reduce((n,w)=>n+w.c,0)/hits.length):0,positions:hits.slice(0,6).map(({x,y,w,h,source,c})=>({x,y,w,h,source,c}))};});
   if(usefulWords<5||textValue.replace(/\s/g,"").length<18){
