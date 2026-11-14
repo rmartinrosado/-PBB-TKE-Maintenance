@@ -360,7 +360,42 @@ async function searchRcsReference(){
 
 async function openDoc(id){await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,60);if(error)throw error;const a=document.createElement("a");a.href=data.signedUrl;a.target="_blank";a.rel="noopener";a.click()}
 async function removeDoc(id){if(!confirm("¿Eliminar el documento privado y su índice?"))return;await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {error:storageError}=await sb.storage.from("pbb-private-docs").remove([d.storage_path]);if(storageError)throw new Error("No se pudo eliminar el PDF de Storage; la ficha y el índice se conservan. "+storageError.message);const {error}=await sb.from("documents").delete().eq("id",id);if(error)throw new Error("El PDF se ha eliminado, pero no se pudo borrar la ficha. Reintenta la eliminación: "+error.message);await list()}
-function installOrderPicker(){const card=$("#casePbb")?.closest(".card");if(!card||$("#libraryOrderPicker"))return;const wrap=document.createElement("label");wrap.innerHTML='Orden de trabajo vinculada<select id="libraryOrderPicker"><option value="">Selecciona una OT para cargar sus datos</option></select>';card.insertBefore(wrap,$("#casePbb").closest(".grid"));const select=$("#libraryOrderPicker");function refresh(){const db=window.PBB_DB||(()=>{try{return JSON.parse(localStorage.getItem("pbb-tke-v6")||"{}")}catch{return {}}})();const orders=db.orders||[];const previous=select.value;select.innerHTML='<option value="">Selecciona una OT para cargar sus datos</option>'+orders.map(o=>'<option value="'+esc(o.id)+'">OT '+esc(o.number)+' · PBB '+esc(o.pbb)+' · '+esc(o.fault)+'</option>').join("");if(orders.some(o=>o.id===previous))select.value=previous;}select.addEventListener("change",()=>{const db=window.PBB_DB||JSON.parse(localStorage.getItem("pbb-tke-v6")||"{}");const order=(db.orders||[]).find(o=>o.id===select.value);if(!order)return;$("#casePbb").value=String(order.pbb||"").replace(/^PBB[- ]?/i,"");$("#caseOrder").value=order.number||"";$("#caseAlarm").value=order.fault||"";$("#caseObs").value=order.checks||"";const q=$("#claudeQuestion");q.value='Analiza la OT '+order.number+' de PBB-'+order.pbb+'. Alarma: '+order.fault+'. Comprueba la documentación seleccionada, cita hoja y referencia exactas y separa hechos, hipótesis y pruebas pendientes.';refreshDocChecks();say('OT '+order.number+' cargada en el análisis documental. Selecciona los documentos aplicables y ejecuta Claude.');});window.addEventListener("pbb-local-data-changed",refresh);window.addEventListener("pbb-cloud-data-merged",refresh);refresh();}
+function installOrderPicker(){
+ const select=$("#libraryOrderPicker");
+ if(!select)return;
+ const readOrders=()=>{
+  try{
+   const local=JSON.parse(localStorage.getItem("pbb-tke-v6")||"{}");
+   const live=window.PBB_DB;
+   return Array.isArray(live?.orders)&&live.orders.length?live.orders:(Array.isArray(local.orders)?local.orders:[]);
+  }catch{return Array.isArray(window.PBB_DB?.orders)?window.PBB_DB.orders:[]}
+ };
+ function refresh(){
+  const orders=readOrders(),previous=select.value;
+  select.innerHTML='<option value="">Selecciona una OT para cargar sus datos</option>'+orders.map(o=>'<option value="'+esc(o.id)+'">OT '+esc(o.number||"—")+' · PBB '+esc(o.pbb||"—")+' · '+esc(o.fault||"Sin descripción")+'</option>').join("");
+  if(orders.some(o=>String(o.id)===previous))select.value=previous;
+  select.disabled=orders.length===0;
+  if(!orders.length)select.innerHTML='<option value="">No hay órdenes locales disponibles</option>';
+ }
+ select.addEventListener("change",()=>{
+  const order=readOrders().find(o=>String(o.id)===select.value);
+  if(!order)return;
+  $("#casePbb").value=String(order.pbb||"").replace(/^PBB[- ]?/i,"");
+  $("#caseOrder").value=order.number||"";
+  $("#caseAlarm").value=order.fault||"";
+  $("#caseObs").value=[order.checks,order.workPerformed,order.materials?("Materiales: "+order.materials):""].filter(Boolean).join("\n");
+  const q=$("#claudeQuestion");
+  q.value="Analiza la OT "+(order.number||"—")+" de PBB-"+order.pbb+". Alarma: "+(order.fault||"No indicada")+". Observaciones y comprobaciones: "+($("#caseObs").value||"No indicadas")+". Contrasta únicamente los documentos seleccionados y aplicables. Cita documento, revisión, hoja/página y referencia exacta. Separa hechos documentados, hipótesis y pruebas pendientes; no inventes bornes ni conexiones.";
+  refreshDocChecks();
+  say("OT "+(order.number||"—")+" · PBB-"+order.pbb+" cargada. Inicia sesión si es necesario, selecciona los documentos aplicables y ejecuta Claude.");
+  $("#casePbb").scrollIntoView({behavior:"smooth",block:"center"});
+ });
+ window.addEventListener("pbb-local-data-changed",refresh);
+ window.addEventListener("pbb-cloud-data-merged",refresh);
+ window.addEventListener("pageshow",refresh);
+ refresh();
+}
+
 async function analyze(){
  const button=$("#claudeRun"),answer=$("#claudeAnswer"),sources=$("#claudeSources");
  try{
