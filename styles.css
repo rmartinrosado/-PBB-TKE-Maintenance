@@ -232,3 +232,11 @@ body.has-field-nav{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
 .field-evidence-item button{width:30px;height:30px;padding:0;border:1px solid #e4caca;border-radius:9px;background:#fff4f4;color:#a43c45;font-size:19px}
 @media(min-width:900px){.field-bottom-nav{left:50%;right:auto;width:min(680px,calc(100% - 40px));transform:translateX(-50%);border:1px solid #d7e2ec;border-bottom:0;border-radius:18px 18px 0 0}}
 @media(max-width:390px){.field-tools-actions{gap:5px}.field-tools-actions button{font-size:10px;padding:8px 4px}.field-bottom-nav button small{font-size:9px}}
+
+/* V2.1 · RCS private PDF viewer and indexed reference search */
+.rcs-pdf-frame-wrap{margin-top:14px;height:min(72vh,850px);min-height:420px;border:1px solid #d6e1eb;border-radius:12px;overflow:hidden;background:#e9eef3}
+.rcs-pdf-frame-wrap iframe{display:block;width:100%;height:100%;border:0;background:#fff}
+.rcs-search-results{display:grid;gap:7px;margin-top:12px}
+.rcs-hit{display:grid;gap:5px;text-align:left;padding:11px;border:1px solid #d9e3ed;border-radius:10px;background:#f7fafc;color:#263f57}
+.rcs-hit b{font-size:12px}.rcs-hit span{font-size:11px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:600px){.rcs-pdf-frame-wrap{height:62vh;min-height:360px}}
