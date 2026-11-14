@@ -1,10 +1,9 @@
+import { getSupabaseClient } from "./supabase-client.js?v=1.0.0";
 const $=s=>document.querySelector(s);
 let knownSession=null;
 const say=s=>{const n=$("#accountStatus");if(n)n.textContent=s};
 function getClient(){
- const shared=window.PBB_GET_SUPABASE_CLIENT;
- if(typeof shared!=="function")throw Error("El módulo de biblioteca aún no ha inicializado la conexión compartida. Recarga la aplicación.");
- return shared();
+ return getSupabaseClient();
 }
 function render(session){
  knownSession=session||null;
