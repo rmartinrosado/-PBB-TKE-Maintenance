@@ -99,16 +99,19 @@ function uploadWithProgress(file,path,token,key,url){
 }
 async function upload(){
  const button=$("#docUpload");let uploadedPath=null,metadataSaved=false;
+ button.disabled=true;button.textContent="Preparando…";
+ uploadProgress(2,"Iniciando importación","Comprobando sesión y preparando la transferencia…");
  try{
-  const user=await ensure(),file=$("#docFile").files[0];
+  uploadProgress(4,"Validando acceso","Verificando la sesión privada…");
+  const user=await ensure(),file=$("#docFile")?.files?.[0];
   if(!file)throw Error("Selecciona un archivo PDF o TXT.");
   const ext=(file.name.split(".").pop()||"").toLowerCase();
   if(!["pdf","txt"].includes(ext))throw Error("Formato no admitido. Selecciona PDF o TXT.");
   if(file.size>50*1024*1024)throw Error("Límite por archivo: 50 MB.");
   const url=localStorage.getItem("pbb-sb-url"),key=localStorage.getItem("pbb-sb-anon"),id=crypto.randomUUID();
   const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_"),path=`${user.user.id}/${id}/${safeName}`;
-  button.disabled=true;button.textContent="Subiendo…";
-  uploadProgress(0,"Preparando archivo",`${file.name} · ${(file.size/1048576).toFixed(2)} MB`);
+  button.textContent="Subiendo…";
+  uploadProgress(8,"Preparando archivo",`${file.name} · ${(file.size/1048576).toFixed(2)} MB · listo para transferir`);
   await uploadWithProgress(file,path,user.access_token,key,url);uploadedPath=path;
   uploadProgress(100,"Archivo transferido","Guardando ficha del documento…");
   const meta={id,user_id:user.user.id,title:$("#docTitle").value.trim()||file.name,file_name:file.name,storage_path:path,mime_type:ext==="pdf"?"application/pdf":"text/plain",file_size:file.size,pbb_scope:$("#docPbb").value.trim()||"COMMON",document_type:$("#docType").value,revision:$("#docRevision").value.trim()||null,notes:$("#docNotes").value.trim()||null};
