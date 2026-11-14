@@ -204,3 +204,42 @@ footer{padding-top:24px}
 .cloud-help{margin-top:14px;padding:12px 14px;border:1px solid #dce6ef;border-radius:12px;background:#f8fafc;}
 .cloud-help summary{color:#31536f;font-size:12px;font-weight:800;cursor:pointer;}
 .cloud-help a{display:inline-block;margin-top:5px;color:#1769aa;font-size:12px;font-weight:800;}
+
+
+/* V2.0 · Field workspace, mobile navigation and evidence */
+body.has-field-nav{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+.field-bottom-nav{position:fixed;z-index:900;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:8px 8px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #d7e2ec;background:rgba(250,252,254,.96);backdrop-filter:blur(16px);box-shadow:0 -9px 28px rgba(8,31,54,.12)}
+.field-bottom-nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:48px;padding:5px 2px;border:0;border-radius:12px;background:transparent;color:#486078;font:inherit}
+.field-bottom-nav button span{font-size:21px;line-height:1}
+.field-bottom-nav button small{font-size:10px;font-weight:750}
+.field-bottom-nav button.field-nav-main{margin-top:-17px;border:3px solid #f7fafc;border-radius:17px;background:linear-gradient(145deg,#1b83bc,#123653);color:#fff;box-shadow:0 6px 15px #12365335}
+.field-bottom-nav button.field-nav-main span{font-size:25px}
+.field-tools{margin:0 0 16px;padding:15px}
+.field-tools-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.field-tools-head b,.field-tools-head small{display:block}
+.field-tools-head b{font-size:14px;color:#183751}
+.field-tools-head small{margin-top:4px;font-size:11px;color:#708398}
+.field-tools-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:13px}
+.field-tools-actions button{min-height:43px;padding:9px 7px;font-size:11px}
+.field-tools>.sub{margin:10px 0 0;font-size:11px}
+.field-evidence-list{display:grid;gap:8px;margin-top:10px}
+.field-evidence-item{display:grid;grid-template-columns:52px minmax(0,1fr) 34px;align-items:center;gap:10px;padding:8px;border:1px solid #dce6ef;border-radius:12px;background:#f8fafc}
+.field-evidence-item img{width:52px;height:52px;object-fit:cover;border-radius:8px;background:#e7edf3}
+.field-evidence-item span{min-width:0}
+.field-evidence-item b,.field-evidence-item small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.field-evidence-item b{font-size:11px;color:#27445f}
+.field-evidence-item small{margin-top:4px;font-size:10px;color:#75869a}
+.field-evidence-item button{width:30px;height:30px;padding:0;border:1px solid #e4caca;border-radius:9px;background:#fff4f4;color:#a43c45;font-size:19px}
+@media(min-width:900px){.field-bottom-nav{left:50%;right:auto;width:min(680px,calc(100% - 40px));transform:translateX(-50%);border:1px solid #d7e2ec;border-bottom:0;border-radius:18px 18px 0 0}}
+@media(max-width:390px){.field-tools-actions{gap:5px}.field-tools-actions button{font-size:10px;padding:8px 4px}.field-bottom-nav button small{font-size:9px}}
+
+/* V2.1 · RCS private PDF viewer and indexed reference search */
+.rcs-pdf-frame-wrap{margin-top:14px;height:min(72vh,850px);min-height:420px;border:1px solid #d6e1eb;border-radius:12px;overflow:hidden;background:#e9eef3}
+.rcs-pdf-frame-wrap iframe{display:block;width:100%;height:100%;border:0;background:#fff}
+.rcs-search-results{display:grid;gap:7px;margin-top:12px}
+.rcs-hit{display:grid;gap:5px;text-align:left;padding:11px;border:1px solid #d9e3ed;border-radius:10px;background:#f7fafc;color:#263f57}
+.rcs-hit b{font-size:12px}.rcs-hit span{font-size:11px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:600px){.rcs-pdf-frame-wrap{height:62vh;min-height:360px}}
+
+/* V2.2 · OCR puntual de hoja escaneada */
+#rcsOcrPage{white-space:normal}

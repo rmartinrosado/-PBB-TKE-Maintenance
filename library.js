@@ -33,7 +33,7 @@ async function list(){
  $("#docList").innerHTML=docs.length?docs.map(d=>`<label class="docrow"><input type="checkbox" class="docpick" value="${esc(d.id)}" ${docAllowed(d)?"checked":""} ${docAllowed(d)?"":"disabled"}><span><b>${esc(d.title)}</b><small>${esc(d.document_type)} · PBB: ${esc(d.pbb_scope)} · Rev: ${esc(d.revision||"No indicada")} · ${new Date(d.created_at).toLocaleDateString("es-ES")}</small></span><button type="button" data-open="${esc(d.id)}" class="mini secondary">Abrir</button><button type="button" data-del="${esc(d.id)}" class="mini danger">Eliminar</button></label>`).join(""):"<p class='sub'>Biblioteca vacía. Sube el primer plano o manual.</p>";
  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeDoc(b.dataset.del).catch(e=>say(e.message)));
  document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDoc(b.dataset.open).catch(e=>say(e.message)));
- refreshDocChecks();say(`Sesión activa · ${docs.length} documentos privados · biblioteca filtrada por posición PBB`);
+ refreshDocChecks();populateRcsViewer();say(`Sesión activa · ${docs.length} documentos privados · biblioteca filtrada por posición PBB`);
 }
 async function extract(file){
  if(file.type==="text/plain")return [{page:"TXT",text:await file.text()}];
@@ -101,6 +101,60 @@ async function upload(){
   uploadProgress(0,"No se pudo iniciar/completar la subida",msg);say(msg);
  }finally{button.disabled=false;button.textContent="Guardar en biblioteca privada"}
 }
+function populateRcsViewer(){
+ const select=$("#rcsViewerDoc");if(!select)return;const previous=select.value;
+ const available=docs.filter(d=>String(d.mime_type||"").includes("pdf")||String(d.file_name||"").toLowerCase().endsWith(".pdf")).filter(d=>docAllowed(d));
+ select.innerHTML='<option value="">Selecciona un documento PDF</option>'+available.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.title)+' · Rev. '+esc(d.revision||"s/r")+'</option>').join("");
+ if(available.some(d=>d.id===previous))select.value=previous;
+}
+async function openRcsViewer(page){
+ await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);if(!d)throw Error("Selecciona un PDF de la biblioteca aplicable a esta posición.");
+ const n=Math.max(1,parseInt(page||$("#rcsViewerPage").value||"1",10)||1);
+ const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,300);if(error)throw error;
+ $("#rcsViewerPage").value=String(n);$("#rcsPdfFrame").src=data.signedUrl+"#page="+n+"&view=FitH";$("#rcsPdfFrameWrap").classList.remove("hidden");
+ $("#rcsViewerStatus").textContent="PDF privado abierto · "+d.title+" · página solicitada "+n+". El visor del navegador puede variar según dispositivo.";
+}
+async function ocrRcsCurrentPage(){
+ const session=await ensure(),id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);
+ const pageNumber=Math.max(1,parseInt($("#rcsViewerPage")?.value||"1",10)||1);
+ if(!d)throw Error("Selecciona primero un PDF.");if(!String(d.mime_type||"").includes("pdf")&&!String(d.file_name||"").toLowerCase().endsWith(".pdf"))throw Error("El documento seleccionado no es PDF.");
+ const status=$("#rcsViewerStatus"),button=$("#rcsOcrPage");button.disabled=true;button.textContent="Preparando OCR…";
+ try{
+  status.textContent="Descargando la página privada y preparando OCR. En iPhone puede tardar unos minutos…";
+  const {data:signed,error:signedError}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,300);if(signedError)throw signedError;
+  const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+  const pdf=await pdfjs.getDocument(signed.signedUrl).promise;if(pageNumber>pdf.numPages)throw Error("El PDF solo tiene "+pdf.numPages+" páginas.");
+  const page=await pdf.getPage(pageNumber),viewport=page.getViewport({scale:2}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+  canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+  await page.render({canvasContext:ctx,viewport}).promise;status.textContent="Página renderizada. Reconociendo texto con OCR español e inglés…";
+  const Tesseract=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm");
+  const worker=await Tesseract.createWorker("spa+eng",1,{logger:m=>{if(m.status==="recognizing text")status.textContent="OCR página "+pageNumber+": "+Math.round((m.progress||0)*100)+"%";}});
+  let result;try{result=await worker.recognize(canvas)}finally{await worker.terminate()}
+  const textValue=String(result?.data?.text||"").replace(/\s+/g," ").trim();canvas.width=0;canvas.height=0;
+  if(textValue.length<8)throw Error("OCR sin texto suficiente en la página "+pageNumber+". Prueba con otra escala o comprueba la calidad del escaneo.");
+  const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);if(lastError)throw lastError;
+  const nextIndex=(lastRows?.[0]?.chunk_index??-1)+1;
+  const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content:"[OCR página "+pageNumber+"] "+textValue});if(insertError)throw insertError;
+  const {data:meta,error:metaError}=await sb.from("documents").select("extracted_chars").eq("id",id).single();if(metaError)throw metaError;
+  const {error:updateError}=await sb.from("documents").update({extracted_chars:(meta.extracted_chars||0)+textValue.length}).eq("id",id);if(updateError)throw updateError;
+  status.textContent="OCR guardado en el índice: página "+pageNumber+" · "+textValue.length+" caracteres. Ya puedes buscar referencias en esta página.";
+  await searchRcsReference().catch(()=>{});
+ }finally{button.disabled=false;button.textContent="OCR de página actual"}
+}
+async function searchRcsReference(){
+ await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id),q=$("#rcsViewerQuery")?.value.trim();
+ if(!d)throw Error("Selecciona primero un documento PDF.");if(!q)throw Error("Introduce una referencia o texto que buscar.");
+ const out=$("#rcsSearchResults"),status=$("#rcsViewerStatus");out.innerHTML="";status.textContent="Buscando en el índice de texto…";
+ const {data,error}=await sb.from("document_chunks").select("page_label,content,chunk_index").eq("document_id",id).order("chunk_index",{ascending:true});
+ if(error)throw error;const terms=q.toLocaleLowerCase("es").split(/\s+/).filter(Boolean);
+ const hits=(data||[]).filter(row=>{const content=String(row.content||"").toLocaleLowerCase("es");return terms.every(t=>content.includes(t))});
+ if(!hits.length){status.textContent="Sin coincidencias en el texto indexado. Si el plano está escaneado, necesita OCR; también puede que la referencia use otra grafía.";return}
+ out.innerHTML=hits.slice(0,40).map((row,i)=>{const content=String(row.content||""),low=content.toLocaleLowerCase("es"),at=low.indexOf(terms[0]),start=Math.max(0,at-140),excerpt=content.slice(start,Math.min(content.length,Math.max(at,0)+260));return '<button type="button" class="rcs-hit" data-rcs-page="'+esc(row.page_label||"1")+'"><b>Hoja / página '+esc(row.page_label||"No indicada")+'</b><span>'+esc(excerpt)+'</span></button>'}).join("");
+ out.querySelectorAll("[data-rcs-page]").forEach(b=>b.addEventListener("click",()=>{const p=parseInt(b.dataset.rcsPage,10);if(Number.isFinite(p))openRcsViewer(p).catch(e=>status.textContent=e.message)}));
+ status.textContent=hits.length+" coincidencia(s) en el índice. Pulsa un resultado para abrir esa página del PDF.";
+}
+
 async function openDoc(id){await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,60);if(error)throw error;const a=document.createElement("a");a.href=data.signedUrl;a.target="_blank";a.rel="noopener";a.click()}
 async function removeDoc(id){if(!confirm("¿Eliminar el documento privado y su índice?"))return;await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {error}=await sb.from("documents").delete().eq("id",id);if(error)throw error;const {error:storageError}=await sb.storage.from("pbb-private-docs").remove([d.storage_path]);if(storageError)throw storageError;await list()}
 async function analyze(){
@@ -138,5 +192,5 @@ $("#caseForm")?.addEventListener("submit",()=>{
 $("#sbConnect").onclick=async()=>{try{const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;await list().catch(e=>say("Sesión iniciada; biblioteca: "+e.message))}catch(e){say(e.message)}};
 $("#sbRegister").onclick=async()=>{try{const c=config(),{error}=await c.auth.signUp({email:$("#sbEmail").value.trim(),password:$("#sbPassword").value});if(error)throw error;say("Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.")}catch(e){say(e.message)}};
 $("#sbLogout").onclick=async()=>{try{if(sb)await sb.auth.signOut();session=null;docs=[];$("#docList").innerHTML="";say("Sesión cerrada.")}catch(e){say(e.message)}};
-$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
+$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
 boot();
