@@ -1,18 +1,10 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=s=>document.querySelector(s);
-let client=null,clientConfig="",knownSession=null;
+let knownSession=null;
 const say=s=>{const n=$("#accountStatus");if(n)n.textContent=s};
 function getClient(){
- const url=($("#sbUrl")?.value||"").trim()||localStorage.getItem("pbb-sb-url")||"";
- const key=($("#sbKey")?.value||"").trim()||localStorage.getItem("pbb-sb-anon")||"";
- if(!url||!key)throw Error("Falta URL o clave pública. Configúralas en Panel operativo → Configuración de sincronización privada.");
- let parsed;try{parsed=new URL(url)}catch{throw Error("La URL de Supabase no es válida.")};
- if(parsed.protocol!=="https:"||!parsed.hostname.endsWith(".supabase.co"))throw Error("La URL debe ser HTTPS y pertenecer al proyecto .supabase.co.");
- const cleanUrl=url.replace(/\/$/,""),fingerprint=cleanUrl+"|"+key;
- localStorage.setItem("pbb-sb-url",cleanUrl);
- localStorage.setItem("pbb-sb-anon",key);
- if(!client||clientConfig!==fingerprint){client=createClient(cleanUrl,key);clientConfig=fingerprint;}
- return client;
+ const shared=window.PBB_GET_SUPABASE_CLIENT;
+ if(typeof shared!=="function")throw Error("El módulo de biblioteca aún no ha inicializado la conexión compartida. Recarga la aplicación.");
+ return shared();
 }
 function render(session){
  knownSession=session||null;
