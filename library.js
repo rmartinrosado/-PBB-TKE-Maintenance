@@ -164,8 +164,8 @@ async function ocrRcsCurrentPage(){
   const nativeHasTechnicalText=nativeAlphaTokens.length>=14&&nativeAlphaRatio>=0.22;
   // En planos eléctricos, la capa vectorial puede contener rejillas, números
   // de coordenadas y texto CAD fragmentado. No se usa para omitir el OCR visual.
-  const nativeText="";
-  const hasUsefulVectorText=false;
+  const nativeText=nativeHasTechnicalText?nativeTextCandidate:"";
+  const hasUsefulVectorText=nativeText.length>=80;
 
   canvas=document.createElement("canvas");
   const ctx=canvas.getContext("2d",{willReadFrequently:true});
@@ -174,10 +174,10 @@ async function ocrRcsCurrentPage(){
   await page.render({canvasContext:ctx,viewport,background:"#ffffff"}).promise;
 
   let ocrWords=[],ocrTexts=[],ocrConfidence=0,ocrMode="sin OCR (texto vectorial PDF)";
-  if(!hasUsefulVectorText){nativeWords.length=0;status.textContent="Texto vectorial insuficiente o dominado por números: activando OCR técnico…";}
+  if(!hasUsefulVectorText)status.textContent="Texto vectorial limitado: se conserva como evidencia y se completa con OCR técnico…";
   // 2) OCR visual obligatorio en todos los planos: cuatro zonas solapadas y
   // dos pasadas (texto general y etiquetas eléctricas), incluso si hay texto CAD.
-  if(!hasUsefulVectorText){
+  {
    const Tesseract=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm");
    worker=await Tesseract.createWorker("eng",1,{logger:m=>{
     if(m.status==="recognizing text")status.textContent="OCR técnico por zonas · "+Math.round((m.progress||0)*100)+"%";
@@ -234,7 +234,7 @@ async function ocrRcsCurrentPage(){
     }
     crop.width=0;crop.height=0;
    }
-   ocrMode="OCR RCS V3: 4 zonas × 4 pasadas (contraste/adaptativo · PSM 11/6)";
+   ocrMode="OCR RCS V3: 4 zonas × 4 pasadas + texto vectorial PDF cuando existe";
    ocrConfidence=ocrWords.length?ocrWords.reduce((n,w)=>n+w.c,0)/ocrWords.length:0;
   }else{
    ocrMode="extracción vectorial PDF (sin OCR)";
@@ -255,12 +255,14 @@ async function ocrRcsCurrentPage(){
   const usefulWords=words.filter(w=>/[A-Za-z0-9]/.test(w.t)).length;
   const confidence=words.length?words.reduce((n,w)=>n+w.c,0)/words.length:0;
   const normalizedText=textValue.toUpperCase().replace(/[–—_]/g,"-");
-  const devicePattern=/\b(?:P\s*-\s*[A-Z]\s*\d{1,3}|DIN\s*-?\s*\d{1,3}|EX\s*-?\s*\d{1,3}|PX\s*-?\s*\d{1,3}|EP\s*-\s*[A-Z0-9]{1,6}|CON\s*-?\s*\d{1,3}|[LKX]\s*\d{1,3})\b/g;
+  const devicePattern=/\b(?:\+?C\s*-\s*B\s*\d{1,2}|P\s*-\s*[A-Z]\s*\d{1,3}|DIN\s*-?\s*\d{1,3}|EX\s*-?\s*\d{1,3}|PX\s*-?\s*\d{1,3}|EP\s*-\s*[A-Z0-9]{1,6}|CON\s*-?\s*\d{1,3}|[LKX]\s*\d{1,3})\b/g;
   const deviceRefs=[...new Set((normalizedText.match(devicePattern)||[]).map(x=>x.replace(/\s+/g,"").replace(/--+/g,"-")))];
   const conductorRefs=[...new Set(ocrWords.filter(w=>/^\d{3}$/.test(w.t)&&w.c>=55).map(w=>w.t))];
   const cableRefs=[...new Set((normalizedText.match(/\b(?:H07RN-F|\d{1,2}\s*[xX]\s*\d+(?:[,.]\d+)?|\d{1,2}\s*[xX]\s*\d+\s*\+\s*C)\b/g)||[]).map(x=>x.replace(/\s+/g,"")))];
   const references=[...new Set([...deviceRefs,...conductorRefs,...cableRefs])];
-  const referenceClasses={equipos:deviceRefs,conductores:conductorRefs,cables:cableRefs};
+  const sensorRefs=[...new Set((normalizedText.match(/\+?C\s*-\s*B\s*\d{1,2}/g)||[]).map(x=>x.replace(/\s+/g,"").replace(/^C-/,"+C-")))];
+  const referenceClasses={equipos:deviceRefs,sensores:sensorRefs,conductores:conductorRefs,cables:cableRefs};
+  const referenceValidation=references.map(reference=>{const key=reference.toUpperCase().replace(/[^A-Z0-9]/g,"");const hits=words.filter(w=>w.t.toUpperCase().replace(/[^A-Z0-9]/g,"")===key);const pdfHits=hits.filter(w=>w.source==="PDF"),ocrHits=hits.filter(w=>String(w.source||"").startsWith("OCR"));return {reference,pdfCount:pdfHits.length,ocrCount:ocrHits.length,agreement:pdfHits.length>0&&ocrHits.length>0?"PDF + OCR":pdfHits.length?"Solo PDF":ocrHits.length?"Solo OCR":"Sin evidencia posicional",confidence:hits.length?Math.round(hits.reduce((n,w)=>n+w.c,0)/hits.length):0,positions:hits.slice(0,6).map(({x,y,w,h,source,c})=>({x,y,w,h,source,c}))};});
   if(usefulWords<5||textValue.replace(/\s/g,"").length<18){
    throw Error("No se ha reconocido texto suficiente; no se ha guardado nada. Palabras útiles: "+usefulWords+". Comprueba que el PDF tenga resolución adecuada.");
   }
@@ -285,13 +287,14 @@ async function ocrRcsCurrentPage(){
    if(!visionAnalysis)throw Error("Claude Vision no devolvió un análisis.");
   }catch(visionError){visionWarning=visionError?.message||String(visionError);visionAnalysis="ANÁLISIS VISUAL IA NO DISPONIBLE: "+visionWarning;}
   const boxRows=words.slice(0,3000).map(({t,c,x,y,w,h,source})=>({t,c,x,y,w,h,source}));
-  const preview="RECONOCIMIENTO DE PLANO · BUILD 3.0.1 · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: ignorado ("+nativeAlphaTokens.length+" tokens alfabéticos detectados)\nPalabras OCR detectadas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\nReferencias clasificadas: "+(references.join(", ")||"ninguna")+"\n\nANÁLISIS VISUAL IA · "+(visionWarning?"NO DISPONIBLE: "+visionWarning:visionModel+" completado")+"\n"+visionAnalysis.slice(0,2200)+"\n\nOCR LOCAL:\n"+textValue.slice(0,1800)
+  const validationSummary=referenceValidation.map(v=>v.reference+": "+v.agreement+" · PDF "+v.pdfCount+" / OCR "+v.ocrCount).join("\n");
+  const preview="VALIDACIÓN CRUZADA RCS · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: "+(nativeText?"conservado ("+nativeAlphaTokens.length+" tokens alfabéticos)":"sin capa técnica suficiente")+"\nPalabras reconocidas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\n\nREFERENCIAS Y EVIDENCIAS\n"+(validationSummary||"Sin referencias clasificadas")+"\n\nANÁLISIS VISUAL IA · "+(visionWarning?"NO DISPONIBLE: "+visionWarning:visionModel+" completado")+"\n"+visionAnalysis.replace(/[#*`]/g,"").replace(/\|/g," · ").slice(0,1700)+"\n\nOCR LOCAL:\n"+textValue.slice(0,1200)
   status.textContent="Análisis del plano terminado. Revisa el resultado antes de guardarlo.";
   if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="Análisis cancelado. No se ha guardado ningún dato.";return;}
   const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);
   if(lastError)throw lastError;
   const nextIndex=(lastRows?.[0]?.chunk_index??-1)+1;
-  const content="[RECONOCIMIENTO PLANO RCS V3 página "+pageNumber+" · "+ocrMode+" · confianza OCR "+Math.round(ocrConfidence)+"%]\n"+textValue+"\n\n[ANALISIS_VISUAL_IA · "+(visionWarning?"NO DISPONIBLE":visionModel)+"]\n"+visionAnalysis+"\n\n[REFERENCIAS_CLASIFICADAS]\n"+JSON.stringify(referenceClasses)+"\n\n[POSICIONES_REFERENCIAS]\n"+JSON.stringify(referencePositions)+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows)
+  const content="[RECONOCIMIENTO PLANO RCS V4 · VALIDACIÓN CRUZADA · página "+pageNumber+" · "+ocrMode+" · confianza OCR "+Math.round(ocrConfidence)+"%]\n"+textValue+"\n\n[ANALISIS_VISUAL_IA · "+(visionWarning?"NO DISPONIBLE":visionModel)+"]\n"+visionAnalysis+"\n\n[REFERENCIAS_CLASIFICADAS]\n"+JSON.stringify(referenceClasses)+"\n\n[VALIDACION_CRUZADA_PDF_OCR]\n"+JSON.stringify(referenceValidation)+"\n\n[POSICIONES_REFERENCIAS]\n"+JSON.stringify(referencePositions)+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows)
   const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content});
   if(insertError)throw insertError;
   const legacyPrefixes=["[OCR página%","[OCR POR ZONAS página%"];
