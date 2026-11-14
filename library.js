@@ -132,7 +132,7 @@ async function ocrRcsCurrentPage(){
   if(pageNumber>pdf.numPages)throw Error("El PDF solo tiene "+pdf.numPages+" páginas.");
   const page=await pdf.getPage(pageNumber),base=page.getViewport({scale:1});
   const scale=Math.min(3.2,6500/Math.max(base.width,base.height),Math.sqrt(20000000/(base.width*base.height)));
-  const viewport=page.getViewport({scale:Math.max(1.5,scale)});
+  const viewport=page.getViewport({scale:Math.max(1,scale)});
   canvas=document.createElement("canvas");
   const ctx=canvas.getContext("2d",{willReadFrequently:true});
   canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
