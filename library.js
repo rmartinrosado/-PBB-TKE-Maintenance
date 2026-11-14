@@ -120,7 +120,7 @@ async function ocrRcsCurrentPage(){
  if(!d)throw Error("Selecciona primero un PDF.");
  if(!String(d.mime_type||"").includes("pdf")&&!String(d.file_name||"").toLowerCase().endsWith(".pdf"))throw Error("El documento seleccionado no es PDF.");
  const status=$("#rcsViewerStatus"),button=$("#rcsOcrPage");
- button.disabled=true;button.textContent="Preparando OCR…";
+ button.disabled=true;button.textContent="Analizando plano…";
  let worker=null,canvas=null;
  try{
   status.textContent="Descargando el PDF privado…";
@@ -133,85 +133,126 @@ async function ocrRcsCurrentPage(){
   const page=await pdf.getPage(pageNumber),base=page.getViewport({scale:1});
   const scale=Math.min(2.8,6000/Math.max(base.width,base.height),Math.sqrt(16000000/(base.width*base.height)));
   const viewport=page.getViewport({scale:Math.max(1,scale)});
+
+  // 1) Primero extrae texto vectorial nativo del PDF: es mucho más fiable que OCR
+  // para etiquetas CAD, bornes, referencias y numeración de conductores.
+  status.textContent="Analizando capa vectorial del PDF…";
+  const nativeContent=await page.getTextContent({includeMarkedContent:true});
+  const nativeItems=(nativeContent.items||[]).filter(item=>typeof item.str==="string"&&item.str.trim());
+  const nativeWords=[];
+  const nativeLines=[];
+  for(const item of nativeItems){
+   const point=viewport.convertToViewportPoint(item.transform?.[4]||0,item.transform?.[5]||0);
+   const x=point[0],y=point[1],height=Math.max(8,Math.abs(item.transform?.[3]||item.height||10)*viewport.scale);
+   const pieces=item.str.trim().split(/\s+/).filter(Boolean);
+   const totalChars=Math.max(1,item.str.trim().length),fullWidth=Math.max(4,(item.width||totalChars*5)*viewport.scale);
+   let offset=0;
+   for(const token of pieces){
+    const ratio=token.length/totalChars,wordWidth=fullWidth*ratio;
+    nativeWords.push({t:token,c:99,x:Math.max(0,Math.round((x+offset)/viewport.width*1000)),y:Math.max(0,Math.round((y-height)/viewport.height*1000)),w:Math.max(1,Math.round(wordWidth/viewport.width*1000)),h:Math.max(1,Math.round(height/viewport.height*1000)),cx:x+offset+wordWidth/2,cy:y-height/2,source:"PDF"});
+    offset+=wordWidth+Math.max(2,fullWidth*.015);
+   }
+   nativeLines.push({x,y,text:item.str.trim()});
+  }
+  nativeLines.sort((a,b)=>Math.abs(a.y-b.y)>3?a.y-b.y:a.x-b.x);
+  const nativeText=nativeLines.map(x=>x.text).join("\n").trim();
+  const hasUsefulVectorText=nativeWords.length>=8||nativeText.replace(/\s/g,"").length>=45;
+
   canvas=document.createElement("canvas");
   const ctx=canvas.getContext("2d",{willReadFrequently:true});
   canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
   status.textContent="Renderizando página "+pageNumber+"…";
   await page.render({canvasContext:ctx,viewport,background:"#ffffff"}).promise;
 
-  // Planos eléctricos: el OCR de página completa pierde etiquetas pequeñas.
-  // Se divide en cuatro zonas solapadas para aumentar el tamaño efectivo del texto.
-  const Tesseract=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm");
-  worker=await Tesseract.createWorker("eng",1,{logger:m=>{
-   if(m.status==="recognizing text")status.textContent="OCR por zonas · "+Math.round((m.progress||0)*100)+"%";
-   else if(m.status)status.textContent="OCR: "+m.status+"…";
-  }});
-  await worker.setParameters({preserve_interword_spaces:"1",user_defined_dpi:"300",tessedit_pageseg_mode:"11"});
-  const W=canvas.width,H=canvas.height,regions=[
-   {name:"superior izquierda",x:0,y:0},
-   {name:"superior derecha",x:.44,y:0},
-   {name:"inferior izquierda",x:0,y:.44},
-   {name:"inferior derecha",x:.44,y:.44}
-  ];
-  const tileW=Math.ceil(W*.56),tileH=Math.ceil(H*.56),allWords=[],texts=[];
-  for(let ri=0;ri<regions.length;ri++){
-   const r=regions[ri],sx=Math.round(r.x*W),sy=Math.round(r.y*H);
-   const tile=document.createElement("canvas");tile.width=tileW;tile.height=tileH;
-   const tctx=tile.getContext("2d",{willReadFrequently:true});
-   tctx.fillStyle="#fff";tctx.fillRect(0,0,tileW,tileH);
-   tctx.drawImage(canvas,sx,sy,tileW,tileH,0,0,tileW,tileH);
-   // Contraste suave sin umbral agresivo, que puede borrar trazos finos.
-   const image=tctx.getImageData(0,0,tileW,tileH),px=image.data;
-   for(let p=0;p<px.length;p+=4){
-    const v=Math.max(0,Math.min(255,(.299*px[p]+.587*px[p+1]+.114*px[p+2]-128)*1.25+128));
-    px[p]=px[p+1]=px[p+2]=v;px[p+3]=255;
+  let ocrWords=[],ocrTexts=[],ocrConfidence=0,ocrMode="sin OCR (texto vectorial PDF)";
+  // 2) Solo si el PDF carece de una capa de texto útil, aplica OCR especializado
+  // en zonas solapadas y una segunda pasada restringida a caracteres de referencias.
+  if(!hasUsefulVectorText){
+   const Tesseract=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm");
+   worker=await Tesseract.createWorker("eng",1,{logger:m=>{
+    if(m.status==="recognizing text")status.textContent="OCR técnico por zonas · "+Math.round((m.progress||0)*100)+"%";
+    else if(m.status)status.textContent="OCR: "+m.status+"…";
+   }});
+   const W=canvas.width,H=canvas.height,regions=[
+    {name:"superior izquierda",x:0,y:0},{name:"superior derecha",x:.44,y:0},
+    {name:"inferior izquierda",x:0,y:.44},{name:"inferior derecha",x:.44,y:.44}
+   ];
+   const tileW=Math.ceil(W*.56),tileH=Math.ceil(H*.56);
+   for(let ri=0;ri<regions.length;ri++){
+    const r=regions[ri],sx=Math.round(r.x*W),sy=Math.round(r.y*H);
+    const tile=document.createElement("canvas");tile.width=tileW;tile.height=tileH;
+    const tctx=tile.getContext("2d",{willReadFrequently:true});
+    tctx.fillStyle="#fff";tctx.fillRect(0,0,tileW,tileH);
+    tctx.drawImage(canvas,sx,sy,tileW,tileH,0,0,tileW,tileH);
+    const image=tctx.getImageData(0,0,tileW,tileH),px=image.data;
+    for(let p=0;p<px.length;p+=4){
+     const v=Math.max(0,Math.min(255,(.299*px[p]+.587*px[p+1]+.114*px[p+2]-128)*1.25+128));
+     px[p]=px[p+1]=px[p+2]=v;px[p+3]=255;
+    }
+    tctx.putImageData(image,0,0);
+    // Pasada A: anotaciones, descripciones y texto general del plano.
+    await worker.setParameters({preserve_interword_spaces:"1",user_defined_dpi:"300",tessedit_pageseg_mode:"11"});
+    status.textContent="OCR general · zona "+(ri+1)+"/4…";
+    const general=await worker.recognize(tile),gd=general?.data||{};
+    const generalText=String(gd.text||"").replace(/\r/g,"").split("\n").map(x=>x.replace(/[ \t]+/g," ").trim()).filter(Boolean).join("\n").trim();
+    if(generalText)ocrTexts.push("["+r.name.toUpperCase()+"]\n"+generalText);
+    for(const word of (gd.words||[])){
+     const token=String(word.text||"").trim(),b=word.bbox||{};
+     if(!token||!Number.isFinite(b.x0)||!Number.isFinite(b.y0))continue;
+     const x0=sx+b.x0,y0=sy+b.y0,x1=sx+b.x1,y1=sy+b.y1;
+     ocrWords.push({t:token,c:Math.round(Number(word.confidence)||0),x:Math.max(0,Math.round(x0/W*1000)),y:Math.max(0,Math.round(y0/H*1000)),w:Math.max(0,Math.round((x1-x0)/W*1000)),h:Math.max(0,Math.round((y1-y0)/H*1000)),cx:(x0+x1)/2,cy:(y0+y1)/2,source:"OCR"});
+    }
+    // Pasada B: etiquetas eléctricas: letras, cifras y separadores típicos de bornes/cables.
+    await worker.setParameters({preserve_interword_spaces:"1",user_defined_dpi:"300",tessedit_pageseg_mode:"11",tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-+./:()_"});
+    status.textContent="OCR de referencias eléctricas · zona "+(ri+1)+"/4…";
+    const focused=await worker.recognize(tile),fd=focused?.data||{};
+    const focusedText=String(fd.text||"").replace(/\r/g,"").split("\n").map(x=>x.replace(/[ \t]+/g," ").trim()).filter(Boolean).join("\n").trim();
+    if(focusedText)ocrTexts.push("[ETIQUETAS "+r.name.toUpperCase()+"]\n"+focusedText);
+    for(const word of (fd.words||[])){
+     const token=String(word.text||"").trim(),b=word.bbox||{};
+     if(!token||!Number.isFinite(b.x0)||!Number.isFinite(b.y0))continue;
+     const x0=sx+b.x0,y0=sy+b.y0,x1=sx+b.x1,y1=sy+b.y1;
+     ocrWords.push({t:token,c:Math.round(Number(word.confidence)||0),x:Math.max(0,Math.round(x0/W*1000)),y:Math.max(0,Math.round(y0/H*1000)),w:Math.max(0,Math.round((x1-x0)/W*1000)),h:Math.max(0,Math.round((y1-y0)/H*1000)),cx:(x0+x1)/2,cy:(y0+y1)/2,source:"OCR-ETIQUETA"});
+    }
+    tile.width=0;tile.height=0;
    }
-   tctx.putImageData(image,0,0);
-   status.textContent="Reconociendo zona "+(ri+1)+"/4: "+r.name+"…";
-   const result=await worker.recognize(tile),data=result?.data||{};
-   const zoneText=String(data.text||"").replace(/\r/g,"").split("\n").map(x=>x.replace(/[ \t]+/g," ").trim()).filter(Boolean).join("\n").trim();
-   if(zoneText)texts.push("["+r.name.toUpperCase()+"]\n"+zoneText);
-   for(const word of (data.words||[])){
-    const token=String(word.text||"").trim(),b=word.bbox||{};
-    if(!token||!Number.isFinite(b.x0)||!Number.isFinite(b.y0))continue;
-    const x0=sx+b.x0,y0=sy+b.y0,x1=sx+b.x1,y1=sy+b.y1;
-    allWords.push({t:token,c:Math.round(Number(word.confidence)||0),x:Math.max(0,Math.round(x0/W*1000)),y:Math.max(0,Math.round(y0/H*1000)),w:Math.max(0,Math.round((x1-x0)/W*1000)),h:Math.max(0,Math.round((y1-y0)/H*1000)),cx:(x0+x1)/2,cy:(y0+y1)/2});
-   }
-   tile.width=0;tile.height=0;
+   ocrMode="OCR especializado: 4 zonas × 2 pasadas";
+   ocrConfidence=ocrWords.length?ocrWords.reduce((n,w)=>n+w.c,0)/ocrWords.length:0;
+  }else{
+   ocrMode="extracción vectorial PDF (sin OCR)";
   }
-  // El solape entre zonas puede repetir palabras: elimina duplicados cercanos.
-  allWords.sort((a,b)=>a.y-b.y||a.x-b.x);
-  const words=[];
-  for(const w of allWords){
-   const duplicate=words.some(q=>q.t.toLowerCase()===w.t.toLowerCase()&&Math.abs(q.cx-w.cx)<Math.max(18,(w.w+q.w)*W/2000)&&Math.abs(q.cy-w.cy)<Math.max(18,(w.h+q.h)*H/2000));
+
+  // Fusiona texto nativo y OCR, eliminando repeticiones por posición.
+  const combined=[...nativeWords,...ocrWords].sort((a,b)=>a.y-b.y||a.x-b.x),words=[];
+  for(const w of combined){
+   const duplicate=words.some(q=>q.t.toLowerCase()===w.t.toLowerCase()&&Math.abs(q.cx-w.cx)<Math.max(18,(w.w+q.w)*canvas.width/2000)&&Math.abs(q.cy-w.cy)<Math.max(18,(w.h+q.h)*canvas.height/2000));
    if(!duplicate)words.push(w);
   }
-  const textValue=texts.join("\n\n").trim();
+  const textValue=[nativeText?("[TEXTO VECTORIAL DEL PDF]\n"+nativeText):"",...ocrTexts].filter(Boolean).join("\n\n").trim();
   const usefulWords=words.filter(w=>/[A-Za-z0-9]/.test(w.t)).length;
   const confidence=words.length?words.reduce((n,w)=>n+w.c,0)/words.length:0;
-  const referencePattern=/\b(?:P[- ]?[A-Z]\d{1,3}|DIN[- ]?\d{1,3}|EX[- ]?\d{1,3}|PX[- ]?\d{1,3}|EP[- ]?[A-Z0-9]{1,6}|CON[- ]?\d{1,3}|[A-Z]{1,3}[- ]\d{2,4})\b/gi;
+  const referencePattern=/\b(?:P[- ]?[A-Z]\d{1,3}|DIN[- ]?\d{1,3}|EX[- ]?\d{1,3}|PX[- ]?\d{1,3}|EP[- ]?[A-Z0-9]{1,6}|CON[- ]?\d{1,3}|[A-Z]{1,3}[- ]\d{2,4}|\d{3,4})\b/gi;
   const references=[...new Set((textValue.match(referencePattern)||[]).map(x=>x.toUpperCase().replace(/\s+/g,"")))];
   if(usefulWords<5||textValue.replace(/\s/g,"").length<18){
-   throw Error("Reconocimiento insuficiente; no se ha guardado nada. Palabras útiles: "+usefulWords+". Prueba otra página o una copia del plano con mayor resolución.");
+   throw Error("No se ha reconocido texto suficiente; no se ha guardado nada. Palabras útiles: "+usefulWords+". Comprueba que el PDF tenga resolución adecuada.");
   }
-  const boxRows=words.slice(0,2500).map(({t,c,x,y,w,h})=>({t,c,x,y,w,h}));
-  const preview="OCR POR ZONAS · página "+pageNumber+"\nPalabras detectadas: "+usefulWords+" · confianza media del motor: "+Math.round(confidence)+"% (no equivale a precisión técnica)\nReferencias con formato eléctrico detectadas: "+(references.join(", ")||"ninguna")+"\n\n"+textValue.slice(0,2800);
-  status.textContent="OCR por zonas completado. Comprueba las etiquetas antes de guardar.";
-  if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="OCR cancelado. No se ha guardado ningún dato.";return;}
+  const boxRows=words.slice(0,3000).map(({t,c,x,y,w,h,source})=>({t,c,x,y,w,h,source}));
+  const preview="RECONOCIMIENTO DE PLANO · página "+pageNumber+"\nMétodo: "+ocrMode+"\nPalabras detectadas: "+usefulWords+" · confianza OCR: "+Math.round(ocrConfidence)+"% (no equivale a precisión técnica)\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
+  status.textContent="Análisis del plano terminado. Revisa el resultado antes de guardarlo.";
+  if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="Análisis cancelado. No se ha guardado ningún dato.";return;}
   const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);
   if(lastError)throw lastError;
   const nextIndex=(lastRows?.[0]?.chunk_index??-1)+1;
-  const content="[OCR POR ZONAS página "+pageNumber+" · confianza media motor "+Math.round(confidence)+"%]\n"+textValue+"\n\n[REFERENCIAS_DETECTADAS]\n"+references.join(", ")+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows);
+  const content="[RECONOCIMIENTO PLANO página "+pageNumber+" · "+ocrMode+" · confianza OCR "+Math.round(ocrConfidence)+"%]\n"+textValue+"\n\n[REFERENCIAS_DETECTADAS]\n"+references.join(", ")+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows);
   const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content});
   if(insertError)throw insertError;
-  // Sustituye el OCR antiguo de esta misma página, sin tocar chunks manuales ni otras páginas.
   const {error:cleanupError}=await sb.from("document_chunks").delete().eq("document_id",id).eq("page_label",String(pageNumber)).like("content","[OCR página%");
-  if(cleanupError)status.textContent="Nuevo OCR guardado; no se pudieron limpiar automáticamente los OCR antiguos de esta página.";
+  if(cleanupError)status.textContent="Nuevo reconocimiento guardado; no se pudieron limpiar automáticamente los OCR antiguos de esta página.";
   const {data:meta,error:metaError}=await sb.from("documents").select("extracted_chars").eq("id",id).single();
   if(metaError)throw metaError;
   const {error:updateError}=await sb.from("documents").update({extracted_chars:(meta.extracted_chars||0)+textValue.length}).eq("id",id);
   if(updateError)throw updateError;
-  status.textContent="OCR por zonas guardado · página "+pageNumber+" · "+textValue.length+" caracteres · "+usefulWords+" palabras · "+references.length+" referencias candidatas. Coordenadas conservadas.";
+  status.textContent="Reconocimiento guardado · página "+pageNumber+" · "+usefulWords+" palabras · "+references.length+" códigos candidatos · "+ocrMode+". Coordenadas conservadas.";
  }finally{
   if(worker)await worker.terminate().catch(()=>{});
   if(canvas){canvas.width=0;canvas.height=0;}
