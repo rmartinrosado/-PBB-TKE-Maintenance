@@ -81,14 +81,16 @@ import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
   setFixedEmail();startupGate=true;document.body.classList.add("auth-locked");
   try{
    const c=getSupabaseClient();
+   // Suscribir primero: evita perder un cambio de autenticación mientras se restaura la sesión.
+   c.auth.onAuthStateChange((event,session)=>{
+    if(event==="SIGNED_IN"&&session){showSession(session);if(startupGate)closeGate();}
+    if(event==="TOKEN_REFRESHED"&&session){showSession(session);}
+    if(event==="SIGNED_OUT"){showSession(null);if(!startupGate){openGate();status("Sesión cerrada. Inicia sesión para continuar.");}}
+   });
    const {data,error}=await c.auth.getSession();if(error)throw error;
    showSession(data.session);
    if(data.session){status("Sesión Supabase restaurada automáticamente. Accediendo…");closeGate();}
    else {openGate();setFixedEmail();status("No hay una sesión guardada. Inicia sesión una vez; las siguientes aperturas restaurarán la sesión automáticamente mientras siga siendo válida.");}
-   c.auth.onAuthStateChange((event,session)=>{
-    if(event==="SIGNED_IN"&&session){showSession(session);if(startupGate)closeGate();}
-    if(event==="SIGNED_OUT"){showSession(null);if(!startupGate){openGate();status("Sesión cerrada. Inicia sesión para continuar.");}}
-   });
   }catch(e){openGate();showSession(null);status("No se pudo restaurar la sesión Supabase: "+(e.message||String(e))+" Revisa la conexión y la configuración técnica.");}
  }
  $("#accountSaveConfig")?.addEventListener("click",()=>{try{saveConfig();status("Configuración guardada en este dispositivo. Ya puedes iniciar sesión.");}catch(e){status(e.message||String(e));}});
