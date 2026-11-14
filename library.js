@@ -75,6 +75,26 @@ async function extract(file){
  for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i),t=await p.getTextContent(),text=t.items.map(x=>x.str||"").join(" ").trim();if(text)pages.push({page:String(i),text})}
  return pages;
 }
+async function extractWithOcr(file,onProgress=()=>{}){
+ const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
+ pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+ const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise,pages=[];
+ const Tesseract=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm");
+ const worker=await Tesseract.createWorker("eng+spa",1,{logger:m=>{if(m.status==="recognizing text")onProgress(m.progress||0,"Reconociendo texto OCR…")}});
+ try{
+  for(let i=1;i<=pdf.numPages;i++){
+   const page=await pdf.getPage(i),viewport=page.getViewport({scale:1.65});
+   const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+   canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+   await page.render({canvasContext:ctx,viewport,background:"#ffffff"}).promise;
+   const result=await worker.recognize(canvas),text=String(result.data?.text||"").replace(/\\s+/g," ").trim();
+   if(text)pages.push({page:String(i),text});
+   canvas.width=0;canvas.height=0;
+   onProgress(i/pdf.numPages, "OCR página "+i+" de "+pdf.numPages);
+  }
+ }finally{await worker.terminate()}
+ return pages;
+}
 function uploadProgress(percent,phase,note){
  const panel=$("#docUploadProgress"),bar=$("#docUploadBar"),value=$("#docUploadPercent"),phaseEl=$("#docUploadPhase"),noteEl=$("#docUploadNote");
  if(!panel)return;panel.classList.add("visible");bar.style.width=Math.max(0,Math.min(100,percent))+"%";value.textContent=Math.round(percent)+"%";phaseEl.textContent=phase;noteEl.textContent=note||"";
@@ -121,12 +141,17 @@ async function upload(){
   const {error:dbErr}=await sb.from("documents").insert(meta);if(dbErr)throw dbErr;metadataSaved=true;
   uploadProgress(100,"Archivo guardado · Indexando","Extrayendo texto para que Claude pueda consultarlo…");
   try{
-   const pages=await extract(file),chunks=[];let idx=0;
+   let pages=await extract(file);
+   if(ext==="pdf"&&!pages.some(p=>p.text.length>=30)){
+    uploadProgress(55,"PDF escaneado · Iniciando OCR","El original ya está guardado. Preparando reconocimiento de texto en español e inglés…");
+    pages=await extractWithOcr(file,(fraction,phase)=>uploadProgress(55+fraction*35,phase,"OCR automático sobre todas las páginas del PDF."));
+   }
+   const chunks=[];let idx=0;
    for(const p of pages)for(let i=0;i<p.text.length;i+=6500)chunks.push({document_id:id,user_id:user.user.id,chunk_index:idx++,page_label:p.page,content:p.text.slice(i,i+6500)});
-   if(chunks.length){for(let offset=0;offset<chunks.length;offset+=40){const batch=chunks.slice(offset,offset+40);const {error}=await sb.from("document_chunks").insert(batch);if(error)throw error;uploadProgress(100,"Indexando documento",`${Math.min(offset+batch.length,chunks.length)} de ${chunks.length} fragmentos guardados`);}}
+   if(chunks.length){for(let offset=0;offset<chunks.length;offset+=40){const batch=chunks.slice(offset,offset+40);const {error}=await sb.from("document_chunks").insert(batch);if(error)throw error;uploadProgress(90+Math.min(9,(offset+batch.length)/chunks.length*9),"Indexando documento",`${Math.min(offset+batch.length,chunks.length)} de ${chunks.length} fragmentos guardados`);}}
    const charCount=pages.reduce((n,p)=>n+p.text.length,0),{error:updateError}=await sb.from("documents").update({extracted_chars:charCount}).eq("id",id);if(updateError)throw updateError;
-   if(!charCount){uploadProgress(100,"PDF guardado · Sin texto extraíble","El archivo está almacenado, pero parece escaneado. Necesita OCR para analizarlo con Claude.");say("PDF guardado, pero no contiene texto extraíble. Necesita OCR.")}
-   else{uploadProgress(100,"Subida e indexación completadas",`${pages.length} páginas · ${charCount.toLocaleString("es-ES")} caracteres indexados`);say("Documento privado guardado e indexado correctamente.")}
+   if(!charCount){uploadProgress(100,"PDF guardado · OCR sin texto reconocible","El archivo está almacenado, pero el OCR no ha encontrado texto legible. Revisa la calidad o el escaneado.");say("PDF guardado, pero no se ha podido extraer texto ni mediante OCR.")}
+   else{uploadProgress(100,"Subida e indexación completadas",`${pages.length} páginas · ${charCount.toLocaleString("es-ES")} caracteres indexados`);say("Documento privado guardado e indexado correctamente.");}
   }catch(indexError){uploadProgress(100,"Archivo guardado · Indexación fallida",indexError.message||String(indexError));say("El original está guardado, pero falló la indexación: "+(indexError.message||String(indexError)))}
   $("#docFile").value="";await list();
  }catch(e){
