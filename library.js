@@ -370,7 +370,8 @@ async function analyze(){
  }catch(e){const message=e?.message||String(e);answer.textContent="NO SE HA PODIDO REALIZAR EL ANÁLISIS\n\n"+message+"\n\nSi falta ANTHROPIC_API_KEY, configura ese secreto en Supabase. Si aparece 404, despliega claude-diagnose. Consulta los registros de Edge Functions para errores internos.";sources.innerHTML="";say("Error de análisis: "+message);answer.scrollIntoView({behavior:"smooth",block:"center"})}
  finally{button.disabled=false;button.textContent="Analizar con Claude"}
 }
-async function refreshLibrarySession(){const listNode=$("#docList");try{const c=getSupabaseClient();sb=c;const {data,error}=await c.auth.getSession();if(error)throw error;session=data.session;if(!session){docs=[];if(listNode)listNode.innerHTML='<p class="sub">No hay una sesión activa. Abre Mi cuenta TKE e inicia sesión.</p>';return;}await list();}catch(e){const message=e?.message||String(e);if(listNode)listNode.innerHTML='<p class="sub">No se pudo cargar la biblioteca privada: '+esc(message)+'</p>';say("Biblioteca: "+message);}}\nwindow.addEventListener("pbb-auth-state-changed",()=>refreshLibrarySession());
+async function refreshLibrarySession(){const listNode=$("#docList");try{const c=getSupabaseClient();sb=c;const {data,error}=await c.auth.getSession();if(error)throw error;session=data.session;if(!session){docs=[];if(listNode)listNode.innerHTML='<p class="sub">No hay una sesión activa. Abre Mi cuenta TKE e inicia sesión.</p>';return;}await list();}catch(e){const message=e?.message||String(e);if(listNode)listNode.innerHTML='<p class="sub">No se pudo cargar la biblioteca privada: '+esc(message)+'</p>';say("Biblioteca: "+message);}}
+window.addEventListener("pbb-auth-state-changed",()=>refreshLibrarySession());
 window.addEventListener("pageshow",()=>refreshLibrarySession());
 window.addEventListener("pbb-supabase-config-changed",()=>refreshLibrarySession());
 async function boot(){
