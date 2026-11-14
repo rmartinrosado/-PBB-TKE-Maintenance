@@ -18,7 +18,7 @@ Deno.serve(async(req)=>{
   if(!documentId)return json({error:"Falta documentId."},400);
   const {data:doc,error:docErr}=await sb.from("documents").select("id,title,file_name,revision,pbb_scope").eq("id",documentId).eq("user_id",user.id).maybeSingle();
   if(docErr)throw docErr;if(!doc)return json({error:"Documento no encontrado o no pertenece a esta cuenta."},403);
-  const pbb=normPbb(body.pbb||"");if(pbb&&!allowedScope(doc.pbb_scope,pbb))return json({error:"El documento no pertenece a la biblioteca aplicable a PBB-"+pbb+"."},403);
+  const pbb=normPbb(body.pbb||"");if(!/^\d{3}$/.test(pbb))return json({error:"La posición PBB es obligatoria y debe tener tres cifras."},400);if(!allowedScope(doc.pbb_scope,pbb))return json({error:"El documento no pertenece a la biblioteca aplicable a PBB-"+pbb+"."},403);
   const images=Array.isArray(body.images)?body.images.slice(0,4):[];
   if(images.length!==4)return json({error:"Se requieren las cuatro zonas del plano."},400);
   let totalBytes=0;
