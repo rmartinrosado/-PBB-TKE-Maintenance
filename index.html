@@ -47,7 +47,7 @@
 <div class="card"><div class="title"><h3>Documentos disponibles</h3><small>Selecciona fuentes para Claude</small></div><div id="docList"><p class="sub">Inicia sesión para cargar el catálogo privado.</p></div></div>
 <div class="card rcs-viewer-card"><div class="title"><h3>Visor técnico de planos RCS</h3><small>Consulta privada · página y referencias</small></div>
 <label>Documento PDF<select id="rcsViewerDoc"><option value="">Selecciona un documento PDF</option></select></label>
-<div class="grid"><label>Página del plano<input id="rcsViewerPage" type="number" min="1" step="1" value="1"></label><label>Referencia eléctrica<input id="rcsViewerQuery" placeholder="Ej. P-A5, DIN02, EX-59, 383"></label></div>
+<div class="grid"><label>Página física del PDF (desde 1)<input id="rcsViewerPage" type="number" min="1" step="1" value="1"></label><label>Referencia eléctrica<input id="rcsViewerQuery" placeholder="Ej. P-A5, DIN02, EX-59, 383"></label></div>
 <div class="actions"><button class="primary" id="rcsOpenViewer" type="button">Abrir plano</button><button class="secondary" id="rcsSearchReference" type="button">Buscar en índice</button><button class="secondary" id="rcsOcrPage" type="button">OCR de página actual</button></div>
 <p class="sub" id="rcsViewerStatus">El visor utiliza el PDF privado de Supabase. La búsqueda consulta el texto indexado durante la carga; los planos escaneados aún requieren OCR.</p>
 <div id="rcsSearchResults" class="rcs-search-results"></div>
