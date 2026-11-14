@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "./supabase-client.js?v=1.0.0";
+import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
 const $=s=>document.querySelector(s),KEY="pbb-tke-v6",CONFLICTS="pbb-sync-conflicts-v1";
 let busy=false;
 const canonical=value=>{if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).filter(k=>k!=="updatedAt").sort().map(k=>[k,canonical(value[k])]));return value};
