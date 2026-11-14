@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getSupabaseClient } from "./supabase-client.js?v=1.0.0";
 const $=s=>document.querySelector(s);
 let sb=null,session=null,docs=[],clientConfig="";
 const A380_PBBS=new Set(["504","507","508"]);
@@ -26,16 +26,14 @@ function config(){
  const url=fieldUrl||localStorage.getItem("pbb-sb-url")||"";
  const key=fieldKey||localStorage.getItem("pbb-sb-anon")||"";
  if(!url||!key)throw Error("Falta la configuración de Supabase. Abre Panel operativo → Configuración de sincronización privada, introduce URL y clave pública y pulsa Guardar configuración.");
- let parsed;try{parsed=new URL(url)}catch{throw Error("La URL de Supabase no es válida.")};
- if(parsed.protocol!=="https:"||!parsed.hostname.endsWith(".supabase.co"))throw Error("Usa la URL HTTPS del proyecto Supabase.");
  const cleanUrl=url.replace(/\/$/,"");
  localStorage.setItem("pbb-sb-url",cleanUrl);localStorage.setItem("pbb-sb-anon",key);
- if(!sb||clientConfig!==cleanUrl+"|"+key){sb=createClient(cleanUrl,key);clientConfig=cleanUrl+"|"+key;session=null;}
+ if(!sb||clientConfig!==cleanUrl+"|"+key){sb=getSupabaseClient(cleanUrl,key);clientConfig=cleanUrl+"|"+key;session=null;}
  if($("#sbUrl"))$("#sbUrl").value=cleanUrl;if($("#sbKey"))$("#sbKey").value=key;
  return sb;
 }
 // Un único cliente Supabase para cuenta, biblioteca y sincronización.
-window.PBB_GET_SUPABASE_CLIENT=config;
+window.PBB_GET_SUPABASE_CLIENT=()=>getSupabaseClient();
 $("#sbSaveConfig").onclick=()=>{try{persistSupabaseFields();config();say("Configuración de Supabase guardada en este dispositivo. Inicia sesión para usar la biblioteca.")}catch(e){say(e.message)}};
 async function ensure(){
  const c=config(),{data,error}=await c.auth.getSession();if(error)throw error;session=data.session;
