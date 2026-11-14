@@ -6,6 +6,20 @@ const currentPbb=()=>String($("#casePbb")?.value||"").trim().replace(/^PBB[- ]?/
 function docAllowed(d,pbb=currentPbb()){const scope=String(d.pbb_scope||"GENERAL").trim().toUpperCase();if(!pbb)return true;if(A380_PBBS.has(pbb))return scope==="A380_SPECIAL"||scope===pbb;if(scope==="A380_SPECIAL")return false;if(scope==="COMMON"||scope==="GENERAL"||scope==="")return true;return scope===pbb;}
 function refreshDocChecks(){document.querySelectorAll(".docpick").forEach(el=>{const d=docs.find(x=>x.id===el.value),ok=d&&docAllowed(d);el.disabled=!ok;el.checked=!!ok;const row=el.closest(".docrow");if(row){row.style.opacity=ok?"1":".42";row.title=ok?"Documento aplicable":"No corresponde a la biblioteca de esta posición";}})}
 const say=s=>{const n=$("#libStatus");if(n)n.textContent=s};
+function persistSupabaseFields(){
+ const url=$("#sbUrl")?.value.trim()||"";
+ const key=$("#sbKey")?.value.trim()||"";
+ try{
+  if(url){const u=new URL(url);if(u.protocol==="https:"&&u.hostname.endsWith(".supabase.co"))localStorage.setItem("pbb-sb-url",url.replace(/\/$/,""));}
+  if(key){localStorage.setItem("pbb-sb-anon",key);}
+  if(key)say("Clave pública guardada automáticamente en este dispositivo. Ya puedes iniciar sesión.");
+ }catch(e){say("No se pudo guardar la configuración local: "+(e.message||String(e)));}
+}
+$("#sbUrl")?.addEventListener("input",persistSupabaseFields);
+$("#sbUrl")?.addEventListener("change",persistSupabaseFields);
+$("#sbKey")?.addEventListener("input",persistSupabaseFields);
+$("#sbKey")?.addEventListener("change",persistSupabaseFields);
+
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function config(){
  const fieldUrl=$("#sbUrl")?.value.trim()||"",fieldKey=$("#sbKey")?.value.trim()||"";
@@ -20,7 +34,7 @@ function config(){
  if($("#sbUrl"))$("#sbUrl").value=cleanUrl;if($("#sbKey"))$("#sbKey").value=key;
  return sb;
 }
-$("#sbSaveConfig").onclick=()=>{try{config();say("Configuración guardada en este dispositivo. Inicia sesión para usar la biblioteca.")}catch(e){say(e.message)}};
+$("#sbSaveConfig").onclick=()=>{try{persistSupabaseFields();config();say("Configuración de Supabase guardada en este dispositivo. Inicia sesión para usar la biblioteca.")}catch(e){say(e.message)}};
 async function ensure(){
  const c=config(),{data,error}=await c.auth.getSession();if(error)throw error;session=data.session;
  if(!session)throw Error("Configuración encontrada, pero no hay sesión activa. Inicia sesión en Panel operativo → Configuración de sincronización privada.");
