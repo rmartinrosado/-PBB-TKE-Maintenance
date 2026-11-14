@@ -34,6 +34,8 @@ function config(){
  if($("#sbUrl"))$("#sbUrl").value=cleanUrl;if($("#sbKey"))$("#sbKey").value=key;
  return sb;
 }
+// Un único cliente Supabase para cuenta, biblioteca y sincronización.
+window.PBB_GET_SUPABASE_CLIENT=config;
 $("#sbSaveConfig").onclick=()=>{try{persistSupabaseFields();config();say("Configuración de Supabase guardada en este dispositivo. Inicia sesión para usar la biblioteca.")}catch(e){say(e.message)}};
 async function ensure(){
  const c=config(),{data,error}=await c.auth.getSession();if(error)throw error;session=data.session;
