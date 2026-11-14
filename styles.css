@@ -243,3 +243,12 @@ body.has-field-nav{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
 
 /* V2.2 · OCR puntual de hoja escaneada */
 #rcsOcrPage{white-space:normal}
+
+/* Acceso único al arrancar, tras completar la imagen splash */
+.account-config{margin-top:16px;padding-top:12px;border-top:1px solid #dbe5ef}
+.account-config summary{font-size:12px;font-weight:800;color:#55718a;cursor:pointer}
+.account-config label{font-size:12px}
+.account-backdrop.startup-gate{z-index:10001;align-items:center;background:#061326e8}
+.account-backdrop.startup-gate .account-sheet{width:min(100%,480px)}
+.account-backdrop.startup-gate #accountClose{display:none!important}
+.account-backdrop.startup-gate #accountGoSync{min-height:48px}
