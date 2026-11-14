@@ -2,6 +2,8 @@ import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
 (async()=>{
  "use strict";
  const $=s=>document.querySelector(s);
+ const FIXED_EMAIL="rmartinrosado@gmail.com";
+ const setFixedEmail=()=>{const el=$("#accountEmailInput");if(el){el.value=FIXED_EMAIL;el.readOnly=true;el.autocomplete="username";el.inputMode="email";el.autocapitalize="none";el.spellcheck=false;}};
  let startupGate=false,authenticated=false;
  const status=(message)=>{const n=$("#accountStatus");if(n)n.textContent=message;const p=$("#libStatus");if(p)p.textContent=message;};
  const busy=(v)=>["#accountLogin","#accountCreate","#accountSaveConfig"].forEach(s=>{const b=$(s);if(b)b.disabled=v});
@@ -38,15 +40,15 @@ import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
   window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated:true,email:$("#accountEmail")?.textContent||null,source:"gate-unlocked"}}));\n  status("Sesión activa: aplicación desbloqueada.");
  }
  async function login(){
-  busy(true);
+  busy(true);setFixedEmail();
   try{
-   const c=saveConfig(),email=$("#accountEmailInput")?.value.trim()||"",password=$("#accountPassword")?.value||"";
+   const c=saveConfig(),email=FIXED_EMAIL,password=$("#accountPassword")?.value||"";
    if(!email||!password)throw Error("Introduce el correo y la contraseña.");
    status("Verificando credenciales…");
    const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;
    if(!data.session)throw Error("Supabase no ha devuelto una sesión. Comprueba la cuenta y la confirmación del correo.");
-   $("#accountPassword").value="";showSession(data.session);status("Acceso correcto. Pulsa «Entrar en la aplicación».");
-   $("#accountGoSync")?.focus();
+   $("#accountPassword").value="";showSession(data.session);status("Acceso correcto. Aplicación desbloqueada.");
+   closeGate();
   }catch(e){status("No se pudo iniciar sesión: "+(e.message||String(e)));}
   finally{busy(false)}
  }
@@ -75,16 +77,17 @@ import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
  async function start(){
   if($("#accountSbUrl")&&localStorage.getItem("pbb-sb-url"))$("#accountSbUrl").value=localStorage.getItem("pbb-sb-url");
   if($("#accountSbKey")&&localStorage.getItem("pbb-sb-anon"))$("#accountSbKey").value=localStorage.getItem("pbb-sb-anon");
-  openGate();
+  openGate();setFixedEmail();
   try{
    const c=getSupabaseClient(),{data,error}=await c.auth.getSession();if(error)throw error;
    showSession(data.session);
-   if(data.session)status("Ya existe una sesión activa. Pulsa «Entrar en la aplicación».");
-   else status("Introduce tu correo y contraseña para acceder.");
+   if(data.session){status("Sesión segura recuperada. Accediendo…");closeGate();}
+   else {setFixedEmail();status("Usa Face ID para autocompletar la contraseña guardada en el iPhone y acceder.");}
   }catch(e){showSession(null);status("Configuración pendiente: "+(e.message||String(e))+" Abre «Configuración técnica de Supabase» si necesitas corregirla.");}
  }
  $("#accountSaveConfig")?.addEventListener("click",()=>{try{saveConfig();status("Configuración guardada en este dispositivo. Ya puedes iniciar sesión.");}catch(e){status(e.message||String(e));}});
  $("#accountLogin")?.addEventListener("click",login);
+ $("#accountEmailInput")?.addEventListener("focus",setFixedEmail);
  $("#accountCreate")?.addEventListener("click",register);
  $("#accountLogout")?.addEventListener("click",logout);
  $("#accountGoSync")?.addEventListener("click",closeGate);
