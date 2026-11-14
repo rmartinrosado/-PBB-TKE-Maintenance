@@ -1,10 +1,9 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=s=>document.querySelector(s),KEY="pbb-tke-v6",CONFLICTS="pbb-sync-conflicts-v1";
-let client=null,busy=false;
+let busy=false;
 const canonical=value=>{if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).filter(k=>k!=="updatedAt").sort().map(k=>[k,canonical(value[k])]));return value};
 const same=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
 function status(message,state="pending"){const n=$("#cloudSyncStatus");if(!n)return;n.textContent=message;n.classList.remove("is-pending","is-connected","is-error","is-dirty");n.classList.add("is-"+state);n.dataset.state=state}
-function getClient(){const url=localStorage.getItem("pbb-sb-url"),key=localStorage.getItem("pbb-sb-anon");if(!url||!key)throw Error("Configura primero URL y clave pública en Panel operativo.");if(!client)client=createClient(url,key);return client}
+function getClient(){const shared=window.PBB_GET_SUPABASE_CLIENT;if(typeof shared!=="function")throw Error("El módulo de biblioteca aún no ha inicializado la conexión compartida. Recarga la aplicación.");return shared()}
 async function signed(){const c=getClient(),{data,error}=await c.auth.getSession();if(error)throw error;if(!data.session)throw Error("No hay sesión activa. Inicia sesión en Mi cuenta TKE.");return {c,user:data.session.user}}
 function readLocal(){const d=JSON.parse(localStorage.getItem(KEY)||'{"orders":[],"history":[]}');for(const g of ["orders","history"]){if(!Array.isArray(d[g]))d[g]=[];d[g].forEach(r=>{if(!r.id)r.id=crypto.randomUUID();if(!r.updatedAt)r.updatedAt=r.savedAt||r.createdAt||new Date().toISOString()})}return d}
 function readConflicts(){try{return JSON.parse(localStorage.getItem(CONFLICTS)||"[]")}catch{return []}}
@@ -29,6 +28,6 @@ async function sync(){if(busy)return;busy=true;const b=$("#cloudSyncNow");if(b)b
  status("Sincronización completada · "+merged.orders.length+" órdenes · "+merged.history.length+" diagnósticos"+conflictNote,"connected");
  }catch(e){status("Error de sincronización: "+(e.message||String(e)),"error")}finally{busy=false;if(b)b.disabled=false}}
 async function refresh(){try{const {c,user}=await signed();const {count,error}=await c.from("maintenance_records").select("*",{count:"exact",head:true}).eq("user_id",user.id);if(error)throw error;const conflicts=readConflicts();renderConflictControl(conflicts);status("Conectado a Supabase · "+(count??0)+" registros privados en la nube"+(conflicts.length?" · "+conflicts.length+" conflictos pendientes de revisión":""),"connected")}catch(e){const message=e.message||String(e);const state=/Configura primero|No hay sesión activa/i.test(message)?"pending":"error";status(message,state)}}
-$("#cloudSyncNow")?.addEventListener("click",sync);$("#cloudRefresh")?.addEventListener("click",refresh);
+$("#cloudSyncNow")?.addEventListener("click",sync);$("#cloudRefresh")?.addEventListener("click",refresh);window.addEventListener("pbb-auth-state-changed",()=>refresh());
 window.addEventListener("pbb-local-data-changed",()=>status("Hay cambios locales pendientes de sincronizar.","dirty"));
 status("Comprobando configuración, sesión y tabla privada…","pending");renderConflictControl();refresh();
