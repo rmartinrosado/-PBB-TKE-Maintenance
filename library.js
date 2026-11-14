@@ -33,7 +33,7 @@ async function list(){
  $("#docList").innerHTML=docs.length?docs.map(d=>`<label class="docrow"><input type="checkbox" class="docpick" value="${esc(d.id)}" ${docAllowed(d)?"checked":""} ${docAllowed(d)?"":"disabled"}><span><b>${esc(d.title)}</b><small>${esc(d.document_type)} · PBB: ${esc(d.pbb_scope)} · Rev: ${esc(d.revision||"No indicada")} · ${new Date(d.created_at).toLocaleDateString("es-ES")}</small></span><button type="button" data-open="${esc(d.id)}" class="mini secondary">Abrir</button><button type="button" data-del="${esc(d.id)}" class="mini danger">Eliminar</button></label>`).join(""):"<p class='sub'>Biblioteca vacía. Sube el primer plano o manual.</p>";
  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>removeDoc(b.dataset.del).catch(e=>say(e.message)));
  document.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDoc(b.dataset.open).catch(e=>say(e.message)));
- refreshDocChecks();say(`Sesión activa · ${docs.length} documentos privados · biblioteca filtrada por posición PBB`);
+ refreshDocChecks();populateRcsViewer();say(`Sesión activa · ${docs.length} documentos privados · biblioteca filtrada por posición PBB`);
 }
 async function extract(file){
  if(file.type==="text/plain")return [{page:"TXT",text:await file.text()}];
@@ -101,6 +101,32 @@ async function upload(){
   uploadProgress(0,"No se pudo iniciar/completar la subida",msg);say(msg);
  }finally{button.disabled=false;button.textContent="Guardar en biblioteca privada"}
 }
+function populateRcsViewer(){
+ const select=$("#rcsViewerDoc");if(!select)return;const previous=select.value;
+ const available=docs.filter(d=>String(d.mime_type||"").includes("pdf")||String(d.file_name||"").toLowerCase().endsWith(".pdf")).filter(d=>docAllowed(d));
+ select.innerHTML='<option value="">Selecciona un documento PDF</option>'+available.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.title)+' · Rev. '+esc(d.revision||"s/r")+'</option>').join("");
+ if(available.some(d=>d.id===previous))select.value=previous;
+}
+async function openRcsViewer(page){
+ await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);if(!d)throw Error("Selecciona un PDF de la biblioteca aplicable a esta posición.");
+ const n=Math.max(1,parseInt(page||$("#rcsViewerPage").value||"1",10)||1);
+ const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,300);if(error)throw error;
+ $("#rcsViewerPage").value=String(n);$("#rcsPdfFrame").src=data.signedUrl+"#page="+n+"&view=FitH";$("#rcsPdfFrameWrap").classList.remove("hidden");
+ $("#rcsViewerStatus").textContent="PDF privado abierto · "+d.title+" · página solicitada "+n+". El visor del navegador puede variar según dispositivo.";
+}
+async function searchRcsReference(){
+ await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id),q=$("#rcsViewerQuery")?.value.trim();
+ if(!d)throw Error("Selecciona primero un documento PDF.");if(!q)throw Error("Introduce una referencia o texto que buscar.");
+ const out=$("#rcsSearchResults"),status=$("#rcsViewerStatus");out.innerHTML="";status.textContent="Buscando en el índice de texto…";
+ const {data,error}=await sb.from("document_chunks").select("page_label,content,chunk_index").eq("document_id",id).order("chunk_index",{ascending:true});
+ if(error)throw error;const terms=q.toLocaleLowerCase("es").split(/\s+/).filter(Boolean);
+ const hits=(data||[]).filter(row=>{const content=String(row.content||"").toLocaleLowerCase("es");return terms.every(t=>content.includes(t))});
+ if(!hits.length){status.textContent="Sin coincidencias en el texto indexado. Si el plano está escaneado, necesita OCR; también puede que la referencia use otra grafía.";return}
+ out.innerHTML=hits.slice(0,40).map((row,i)=>{const content=String(row.content||""),low=content.toLocaleLowerCase("es"),at=low.indexOf(terms[0]),start=Math.max(0,at-140),excerpt=content.slice(start,Math.min(content.length,Math.max(at,0)+260));return '<button type="button" class="rcs-hit" data-rcs-page="'+esc(row.page_label||"1")+'"><b>Hoja / página '+esc(row.page_label||"No indicada")+'</b><span>'+esc(excerpt)+'</span></button>'}).join("");
+ out.querySelectorAll("[data-rcs-page]").forEach(b=>b.addEventListener("click",()=>{const p=parseInt(b.dataset.rcsPage,10);if(Number.isFinite(p))openRcsViewer(p).catch(e=>status.textContent=e.message)}));
+ status.textContent=hits.length+" coincidencia(s) en el índice. Pulsa un resultado para abrir esa página del PDF.";
+}
+
 async function openDoc(id){await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,60);if(error)throw error;const a=document.createElement("a");a.href=data.signedUrl;a.target="_blank";a.rel="noopener";a.click()}
 async function removeDoc(id){if(!confirm("¿Eliminar el documento privado y su índice?"))return;await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {error}=await sb.from("documents").delete().eq("id",id);if(error)throw error;const {error:storageError}=await sb.storage.from("pbb-private-docs").remove([d.storage_path]);if(storageError)throw storageError;await list()}
 async function analyze(){
@@ -138,5 +164,5 @@ $("#caseForm")?.addEventListener("submit",()=>{
 $("#sbConnect").onclick=async()=>{try{const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;await list().catch(e=>say("Sesión iniciada; biblioteca: "+e.message))}catch(e){say(e.message)}};
 $("#sbRegister").onclick=async()=>{try{const c=config(),{error}=await c.auth.signUp({email:$("#sbEmail").value.trim(),password:$("#sbPassword").value});if(error)throw error;say("Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.")}catch(e){say(e.message)}};
 $("#sbLogout").onclick=async()=>{try{if(sb)await sb.auth.signOut();session=null;docs=[];$("#docList").innerHTML="";say("Sesión cerrada.")}catch(e){say(e.message)}};
-$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
+$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
 boot();
