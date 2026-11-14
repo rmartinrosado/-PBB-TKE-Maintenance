@@ -120,7 +120,7 @@ async function upload(){
   try{
    const pages=await extract(file),chunks=[];let idx=0;
    for(const p of pages)for(let i=0;i<p.text.length;i+=6500)chunks.push({document_id:id,user_id:user.user.id,chunk_index:idx++,page_label:p.page,content:p.text.slice(i,i+6500)});
-   if(chunks.length){const {error}=await sb.from("document_chunks").insert(chunks);if(error)throw error}
+   if(chunks.length){for(let offset=0;offset<chunks.length;offset+=40){const batch=chunks.slice(offset,offset+40);const {error}=await sb.from("document_chunks").insert(batch);if(error)throw error;uploadProgress(100,"Indexando documento",`${Math.min(offset+batch.length,chunks.length)} de ${chunks.length} fragmentos guardados`);}}
    const charCount=pages.reduce((n,p)=>n+p.text.length,0),{error:updateError}=await sb.from("documents").update({extracted_chars:charCount}).eq("id",id);if(updateError)throw updateError;
    if(!charCount){uploadProgress(100,"PDF guardado · Sin texto extraíble","El archivo está almacenado, pero parece escaneado. Necesita OCR para analizarlo con Claude.");say("PDF guardado, pero no contiene texto extraíble. Necesita OCR.")}
    else{uploadProgress(100,"Subida e indexación completadas",`${pages.length} páginas · ${charCount.toLocaleString("es-ES")} caracteres indexados`);say("Documento privado guardado e indexado correctamente.")}
