@@ -114,6 +114,34 @@ async function openRcsViewer(page){
  $("#rcsViewerPage").value=String(n);$("#rcsPdfFrame").src=data.signedUrl+"#page="+n+"&view=FitH";$("#rcsPdfFrameWrap").classList.remove("hidden");
  $("#rcsViewerStatus").textContent="PDF privado abierto · "+d.title+" · página solicitada "+n+". El visor del navegador puede variar según dispositivo.";
 }
+async function ocrRcsCurrentPage(){
+ const session=await ensure(),id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);
+ const pageNumber=Math.max(1,parseInt($("#rcsViewerPage")?.value||"1",10)||1);
+ if(!d)throw Error("Selecciona primero un PDF.");if(!String(d.mime_type||"").includes("pdf")&&!String(d.file_name||"").toLowerCase().endsWith(".pdf"))throw Error("El documento seleccionado no es PDF.");
+ const status=$("#rcsViewerStatus"),button=$("#rcsOcrPage");button.disabled=true;button.textContent="Preparando OCR…";
+ try{
+  status.textContent="Descargando la página privada y preparando OCR. En iPhone puede tardar unos minutos…";
+  const {data:signed,error:signedError}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,300);if(signedError)throw signedError;
+  const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+  const pdf=await pdfjs.getDocument(signed.signedUrl).promise;if(pageNumber>pdf.numPages)throw Error("El PDF solo tiene "+pdf.numPages+" páginas.");
+  const page=await pdf.getPage(pageNumber),viewport=page.getViewport({scale:2}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+  canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+  await page.render({canvasContext:ctx,viewport}).promise;status.textContent="Página renderizada. Reconociendo texto con OCR español e inglés…";
+  const Tesseract=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm");
+  const worker=await Tesseract.createWorker("spa+eng",1,{logger:m=>{if(m.status==="recognizing text")status.textContent="OCR página "+pageNumber+": "+Math.round((m.progress||0)*100)+"%";}});
+  let result;try{result=await worker.recognize(canvas)}finally{await worker.terminate()}
+  const textValue=String(result?.data?.text||"").replace(/\s+/g," ").trim();canvas.width=0;canvas.height=0;
+  if(textValue.length<8)throw Error("OCR sin texto suficiente en la página "+pageNumber+". Prueba con otra escala o comprueba la calidad del escaneo.");
+  const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);if(lastError)throw lastError;
+  const nextIndex=(lastRows?.[0]?.chunk_index??-1)+1;
+  const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content:"[OCR página "+pageNumber+"] "+textValue});if(insertError)throw insertError;
+  const {data:meta,error:metaError}=await sb.from("documents").select("extracted_chars").eq("id",id).single();if(metaError)throw metaError;
+  const {error:updateError}=await sb.from("documents").update({extracted_chars:(meta.extracted_chars||0)+textValue.length}).eq("id",id);if(updateError)throw updateError;
+  status.textContent="OCR guardado en el índice: página "+pageNumber+" · "+textValue.length+" caracteres. Ya puedes buscar referencias en esta página.";
+  await searchRcsReference().catch(()=>{});
+ }finally{button.disabled=false;button.textContent="OCR de página actual"}
+}
 async function searchRcsReference(){
  await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id),q=$("#rcsViewerQuery")?.value.trim();
  if(!d)throw Error("Selecciona primero un documento PDF.");if(!q)throw Error("Introduce una referencia o texto que buscar.");
@@ -164,5 +192,5 @@ $("#caseForm")?.addEventListener("submit",()=>{
 $("#sbConnect").onclick=async()=>{try{const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;await list().catch(e=>say("Sesión iniciada; biblioteca: "+e.message))}catch(e){say(e.message)}};
 $("#sbRegister").onclick=async()=>{try{const c=config(),{error}=await c.auth.signUp({email:$("#sbEmail").value.trim(),password:$("#sbPassword").value});if(error)throw error;say("Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.")}catch(e){say(e.message)}};
 $("#sbLogout").onclick=async()=>{try{if(sb)await sb.auth.signOut();session=null;docs=[];$("#docList").innerHTML="";say("Sesión cerrada.")}catch(e){say(e.message)}};
-$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
+$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
 boot();
