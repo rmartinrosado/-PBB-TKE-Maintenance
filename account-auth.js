@@ -37,7 +37,8 @@ import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
   if(!authenticated){status("Debes iniciar sesión para acceder a la aplicación.");return;}
   startupGate=false;$("#accountDialog")?.classList.remove("startup-gate","visible");$("#accountDialog")?.classList.add("hidden");
   document.body.classList.remove("auth-locked");
-  window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated:true,email:$("#accountEmail")?.textContent||null,source:"gate-unlocked"}}));\n  status("Sesión activa: aplicación desbloqueada.");
+  window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated:true,email:$("#accountEmail")?.textContent||null,source:"gate-unlocked"}}));
+  status("Sesión activa: aplicación desbloqueada.");
  }
  async function login(){
   busy(true);setFixedEmail();
