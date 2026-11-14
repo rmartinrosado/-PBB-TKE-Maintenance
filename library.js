@@ -413,6 +413,6 @@ $("#sbRegister")?.addEventListener("click",async()=>{
  say(data.session?"Cuenta creada y sesión iniciada.":"Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.");
  }catch(e){say("Error al crear usuario: "+(e.message||String(e)))}
 });
-$("#sbLogout").onclick=async()=>{try{if(sb)await sb.auth.signOut();session=null;docs=[];$("#docList").innerHTML="";say("Sesión cerrada.")}catch(e){say(e.message)}};
+$("#sbLogout")?.addEventListener("click",async()=>{try{const client=getSupabaseClient();await client.auth.signOut();session=null;docs=[];$("#docList").innerHTML="<p class=\"sub\">Inicia sesión para cargar el catálogo privado.</p>";say("Sesión cerrada.")}catch(e){say(e.message)}});
 $("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
 boot();
