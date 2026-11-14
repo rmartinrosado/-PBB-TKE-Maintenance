@@ -3,7 +3,7 @@ const $=s=>document.querySelector(s);
 let sb=null,session=null,docs=[],clientConfig="";
 const A380_PBBS=new Set(["504","507","508"]);
 const currentPbb=()=>String($("#casePbb")?.value||"").trim().replace(/^PBB[- ]?/i,"");
-function docAllowed(d,pbb=currentPbb()){const scope=String(d.pbb_scope||"GENERAL").trim().toUpperCase();if(A380_PBBS.has(pbb))return scope==="A380_SPECIAL"||scope===pbb;if(scope==="A380_SPECIAL")return false;if(scope==="COMMON"||scope==="GENERAL"||scope==="")return true;return scope===pbb;}
+function docAllowed(d,pbb=currentPbb()){const scope=String(d.pbb_scope||"GENERAL").trim().toUpperCase();if(!pbb)return true;if(A380_PBBS.has(pbb))return scope==="A380_SPECIAL"||scope===pbb;if(scope==="A380_SPECIAL")return false;if(scope==="COMMON"||scope==="GENERAL"||scope==="")return true;return scope===pbb;}
 function refreshDocChecks(){document.querySelectorAll(".docpick").forEach(el=>{const d=docs.find(x=>x.id===el.value),ok=d&&docAllowed(d);el.disabled=!ok;el.checked=!!ok;const row=el.closest(".docrow");if(row){row.style.opacity=ok?"1":".42";row.title=ok?"Documento aplicable":"No corresponde a la biblioteca de esta posición";}})}
 const say=s=>{const n=$("#libStatus");if(n)n.textContent=s};
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
