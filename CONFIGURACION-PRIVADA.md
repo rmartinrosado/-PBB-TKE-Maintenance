@@ -1,26 +1,41 @@
 # Puesta en marcha privada · PBB TKE Maintenance
 
 ## Arquitectura
-- PWA estática en GitHub Pages (interfaz; no almacena documentos privados).
-- Supabase Auth (cuenta individual), Postgres con RLS y Storage privado.
-- Los originales se guardan en el bucket privado `pbb-private-docs`.
-- Los textos extraídos se guardan por fragmentos en `document_chunks` para permitir consultas documentales.
-- Función Edge `claude-diagnose` llama a Claude desde servidor. La clave Anthropic nunca se introduce en la PWA.
+- PWA estática en GitHub Pages: interfaz, no almacena los documentos privados.
+- Supabase Auth: sesión personal persistente compartida por la cuenta, biblioteca y sincronización.
+- PostgreSQL: tablas `documents` y `document_chunks`, protegidas por RLS por usuario.
+- Supabase Storage: bucket privado `pbb-private-docs`; cada objeto se guarda bajo la carpeta del UUID del usuario.
+- Edge Functions: `claude-diagnose` para consultas documentales y `claude-plan-vision` para análisis visual de planos.
+- Anthropic API: la clave se conserva exclusivamente como secreto de las Edge Functions.
 
-## Activación (una sola vez)
-1. Crea un proyecto en Supabase y conserva URL y clave pública (anon/publishable). No publiques claves secretas.
-2. En SQL Editor ejecuta íntegramente `supabase/schema.sql`.
-3. En Authentication configura el proveedor Email. Crea tu usuario y confirma el correo según la política elegida.
-4. En Edge Functions despliega `supabase/functions/claude-diagnose/index.ts` con nombre `claude-diagnose`.
-5. En secretos de Edge Functions configura `ANTHROPIC_API_KEY` con tu clave de Anthropic. No la escribas en GitHub, en el HTML ni en un mensaje.
-6. En la PWA, sección Biblioteca privada, introduce Project URL y clave pública; inicia sesión con tu correo y contraseña.
+## Configuración inicial o reparación
+1. En Supabase, abre el proyecto `qwhzwzaaisqmlsttkgsp`.
+2. En SQL Editor ejecuta íntegramente `supabase/schema.sql`. Es idempotente y configura tablas, índices, permisos, RLS y bucket privado. `supabase/document_library.sql` contiene la misma configuración de biblioteca documental por compatibilidad; no es necesario ejecutar ambos.
+3. En Authentication → Users comprueba que existe la cuenta `rmartinrosado@gmail.com` y que está confirmada.
+4. En Project Settings → API copia la Project URL y la clave pública anon/publishable. No uses service_role en la PWA.
+5. En Edge Functions → Secrets comprueba que existe `ANTHROPIC_API_KEY`. Opcionalmente configura `CLAUDE_MODEL`.
+6. Comprueba que están desplegadas las funciones `claude-diagnose` y `claude-plan-vision`. Los workflows de GitHub intentan desplegarlas automáticamente; un workflow correcto confirma el despliegue del código, no la presencia de secretos ni la operatividad de las llamadas.
+7. En la PWA, abre la configuración técnica de Supabase, guarda Project URL y clave pública e inicia sesión.
 
-## Alcance de esta versión
-- PDF: extracción de texto en el navegador y almacenamiento del original + fragmentos de texto.
-- TXT: indexación directa.
-- PDF escaneado, fotos y planos rasterizados: requieren OCR; esta versión los guarda, pero no puede interpretar automáticamente su contenido. Anota hoja/revisión y añade transcripción cuando sea necesario.
-- DOC/DOCX/XLS/XLSX: se guardan como originales; no se indexan automáticamente en esta primera versión.
-- El análisis usa únicamente documentos seleccionados y fragmentos extraídos; siempre debe cotejarse el plano original.
+## Flujo documental
+1. La sesión se obtiene de Supabase Auth.
+2. El original PDF/TXT (máximo 50 MB) se sube al bucket privado.
+3. Se inserta la ficha en `documents` con propietario, ámbito PBB, tipo, revisión y notas.
+4. El texto PDF/TXT se extrae en el navegador y se guarda en fragmentos de `document_chunks` por página.
+5. Los PDF sin texto extraíble se conservan como originales y requieren ejecutar OCR por página desde el visor RCS.
+6. La consulta Claude valida usuario, PBB y ámbito documental en el servidor antes de recuperar fragmentos.
+7. El análisis visual valida también usuario y PBB; envía cuatro zonas de la página seleccionada a Claude Vision.
 
-## Seguridad y límites
-El bucket es privado y las tablas aplican RLS por usuario. No uses una clave service-role en el navegador. La clave Anthropic debe permanecer como secreto de la función. La PWA está publicada en GitHub Pages: no subas aquí planos, manuales, credenciales ni exportaciones documentales. El acceso privado exige conexión a Internet. La copia de seguridad local existente no sustituye a la copia del repositorio documental.
+## Ámbitos documentales
+- `COMMON`: documentación común de PBB estándar.
+- `A380_SPECIAL`: exclusiva para PBB-504, PBB-507 y PBB-508.
+- Número de tres cifras: documentación específica de esa posición.
+- `GENERAL`: compatibilidad histórica interpretada como común.
+
+## Límites y verificación
+- La interfaz por sí sola no garantiza el aislamiento: lo aplican RLS, Storage policies y validaciones de Edge Functions.
+- El porcentaje de la barra representa la transferencia del original; la indexación se informa como fase separada.
+- OCR y análisis visual requieren conexión a Internet y dependencias externas.
+- La publicación en GitHub Pages no ejecuta SQL ni crea secretos en Supabase.
+- Antes de declarar la biblioteca operativa deben probarse con una cuenta real: login, listado, subida, descarga/visor, indexación, búsqueda, OCR, Claude, borrado y aislamiento entre usuarios.
+- No se deben compartir documentos técnicos, claves privadas ni contraseñas en GitHub.
