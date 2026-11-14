@@ -10,6 +10,7 @@ function getClient(){
 }
 function render(session){
  knownSession=session||null;
+ window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated:!!session,email:session?.user?.email||null}}));
  $("#accountForm").classList.toggle("hidden",!!session);
  $("#accountSigned").classList.toggle("hidden",!session);
  $("#accountLoggedActions").classList.toggle("hidden",!session);
