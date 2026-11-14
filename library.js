@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "./supabase-client.js?v=1.0.0";
+import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
 const $=s=>document.querySelector(s);
 let sb=null,session=null,docs=[],clientConfig="";
 const A380_PBBS=new Set(["504","507","508"]);
