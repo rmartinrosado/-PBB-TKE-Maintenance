@@ -50,8 +50,11 @@ $("#sbSaveConfig")?.addEventListener("click",()=>{
  }catch(e){say("No se guardó la configuración: "+(e.message||String(e)))}
 });
 async function ensure(){
- const c=config(),{data,error}=await c.auth.getSession();if(error)throw error;session=data.session;
- if(!session)throw Error("Configuración encontrada, pero no hay sesión activa. Inicia sesión en Panel operativo → Configuración de sincronización privada.");
+ const c=config();
+ let {data,error}=await c.auth.getSession();if(error)throw error;
+ session=data.session||null;
+ if(!session){const renewed=await c.auth.refreshSession();if(renewed.error)throw renewed.error;session=renewed.data.session||null;}
+ if(!session)throw Error("Supabase no tiene una sesión válida en este dispositivo. Abre Mi cuenta TKE e inicia sesión una vez; después la PWA podrá restaurarla automáticamente.");
  return session;
 }
 async function list(){
@@ -410,14 +413,22 @@ async function analyze(){
  finally{button.disabled=false;button.textContent="Analizar con Claude"}
 }
 async function refreshLibrarySession(event){const listNode=$("#docList");try{const c=getSupabaseClient();sb=c;if(event?.detail?.session)session=event.detail.session;else{const {data,error}=await c.auth.getSession();if(error)throw error;session=data.session;}if(!session){docs=[];if(listNode)listNode.innerHTML='<p class="sub">No hay una sesión activa. Abre Mi cuenta TKE e inicia sesión.</p>';return;}await list();}catch(e){const message=e?.message||String(e);if(listNode)listNode.innerHTML='<p class="sub">Error cargando documentos: '+esc(message)+'</p>';say("Biblioteca: "+message);}}
-window.addEventListener("pbb-auth-state-changed",event=>refreshLibrarySession(event));
+// Diferir las consultas: no ejecutar operaciones Supabase dentro del callback síncrono de onAuthStateChange.
+window.addEventListener("pbb-auth-state-changed",event=>{if(event.detail?.session)session=event.detail.session;setTimeout(()=>refreshLibrarySession(event),0);});
 window.addEventListener("pageshow",()=>refreshLibrarySession());
 window.addEventListener("pbb-supabase-config-changed",()=>refreshLibrarySession());
 async function boot(){
  const url=localStorage.getItem("pbb-sb-url"),key=localStorage.getItem("pbb-sb-anon");
  if(url&&$("#sbUrl"))$("#sbUrl").value=url;if(key&&$("#sbKey"))$("#sbKey").value=key;
- try{if(url&&key){config();const {data,error}=await sb.auth.getSession();if(error)throw error;session=data.session;if(session)await list()}}
- catch(e){say("Biblioteca: "+(e.message||String(e)))}
+ try{
+  if(url&&key){
+   config();
+   const {data,error}=await sb.auth.getSession();if(error)throw error;
+   session=data.session||null;
+   if(!session){const renewed=await sb.auth.refreshSession();if(renewed.error)throw renewed.error;session=renewed.data.session||null;}
+   if(session)await list();else say("Configuración Supabase cargada, pero no hay sesión autenticada. Inicia sesión en Mi cuenta TKE.");
+  }else say("Configura Supabase en Mi cuenta TKE para acceder a la biblioteca privada.");
+ }catch(e){say("Biblioteca: "+(e.message||String(e)))}
 }
 
 // Copia automáticamente los datos del caso nuevo al formulario Claude.
