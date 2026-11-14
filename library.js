@@ -162,8 +162,10 @@ async function ocrRcsCurrentPage(){
   const nativeAlnumTokens=nativeWords.filter(w=>/[A-Za-z0-9]/.test(w.t));
   const nativeAlphaRatio=nativeAlnumTokens.length?nativeAlphaTokens.length/nativeAlnumTokens.length:0;
   const nativeHasTechnicalText=nativeAlphaTokens.length>=14&&nativeAlphaRatio>=0.22;
-  const nativeText=nativeHasTechnicalText?nativeTextCandidate:"";
-  const hasUsefulVectorText=nativeHasTechnicalText;
+  // En planos eléctricos, la capa vectorial puede contener rejillas, números
+  // de coordenadas y texto CAD fragmentado. No se usa para omitir el OCR visual.
+  const nativeText="";
+  const hasUsefulVectorText=false;
 
   canvas=document.createElement("canvas");
   const ctx=canvas.getContext("2d",{willReadFrequently:true});
@@ -173,8 +175,8 @@ async function ocrRcsCurrentPage(){
 
   let ocrWords=[],ocrTexts=[],ocrConfidence=0,ocrMode="sin OCR (texto vectorial PDF)";
   if(!hasUsefulVectorText){nativeWords.length=0;status.textContent="Texto vectorial insuficiente o dominado por números: activando OCR técnico…";}
-  // 2) Solo si el PDF carece de una capa de texto útil, aplica OCR especializado
-  // en zonas solapadas y una segunda pasada restringida a caracteres de referencias.
+  // 2) OCR visual obligatorio en todos los planos: cuatro zonas solapadas y
+  // dos pasadas (texto general y etiquetas eléctricas), incluso si hay texto CAD.
   if(!hasUsefulVectorText){
    const Tesseract=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm");
    worker=await Tesseract.createWorker("eng",1,{logger:m=>{
@@ -245,7 +247,7 @@ async function ocrRcsCurrentPage(){
    throw Error("No se ha reconocido texto suficiente; no se ha guardado nada. Palabras útiles: "+usefulWords+". Comprueba que el PDF tenga resolución adecuada.");
   }
   const boxRows=words.slice(0,3000).map(({t,c,x,y,w,h,source})=>({t,c,x,y,w,h,source}));
-  const preview="RECONOCIMIENTO DE PLANO · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial: "+(nativeHasTechnicalText?"aceptado ("+nativeAlphaTokens.length+" tokens alfabéticos; "+Math.round(nativeAlphaRatio*100)+"% del texto)":"rechazado por baja calidad; OCR activado")+"\nPalabras detectadas: "+usefulWords+" · confianza OCR: "+(ocrWords.length?Math.round(ocrConfidence)+"%":"no aplicable")+"\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
+  const preview="RECONOCIMIENTO DE PLANO · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: ignorado para evitar coordenadas y texto CAD engañosos ("+nativeAlphaTokens.length+" tokens alfabéticos detectados)\nPalabras OCR detectadas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
   status.textContent="Análisis del plano terminado. Revisa el resultado antes de guardarlo.";
   if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="Análisis cancelado. No se ha guardado ningún dato.";return;}
   const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);
