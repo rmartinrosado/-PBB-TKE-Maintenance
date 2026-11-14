@@ -22,7 +22,7 @@ PWA de apoyo al mantenimiento electromecánico de Passenger Boarding Bridges TKE
 - Las fotografías se guardan en IndexedDB del dispositivo y **todavía no se sincronizan con Supabase ni forman parte de la exportación JSON**. Descárgalas o conserva el dispositivo original hasta que se incorpore un paquete de respaldo de evidencias.
 - La sincronización no propaga eliminaciones locales como tombstones. No borres datos locales esperando que esa eliminación se replique en la nube.
 - Los conflictos detectados se aíslan y descargan; todavía no existe una pantalla para resolverlos y confirmar qué versión conservar.
-- Los PDFs con texto se indexan. Los planos escaneados necesitan OCR; no se ha incorporado OCR en esta versión.
+- Los PDFs con texto se indexan. Para planos escaneados existe OCR puntual por página desde el visor RCS; falta validación real en Safari/iPhone y Supabase.
 - Claude no debe considerarse una fuente de verdad. Cada conexión, borne, referencia y valor debe cotejarse con el plano/revisión aplicable y la instalación real.
 - La PWA no consulta CGA ni el estado operativo en tiempo real.
 
@@ -54,15 +54,15 @@ Esta rama es una propuesta de desarrollo separada de `main`. Antes de publicarla
 No fusionar en producción hasta superar estas pruebas.
 
 
-## Visor RCS · entrega inicial V2.1
+## Visor RCS y OCR puntual · V2.1–V2.2
 
-La rama de desarrollo incorpora un visor de PDF privado con navegación a página y búsqueda literal en el índice de texto de Supabase. Los resultados muestran el número de página/hoja indexado y permiten abrir esa página en el visor. La selección de documentos conserva el filtrado por biblioteca/posición, incluida la exclusión mutua de la documentación A380.
+La rama de desarrollo incorpora un visor de PDF privado con navegación a página, búsqueda literal en el índice de Supabase y OCR puntual. El acceso se muestra como Planos / Visor RCS y el visor aparece antes del formulario de subida. Los resultados muestran el número de página/hoja indexado y permiten abrir esa página en el visor. La selección de documentos conserva el filtrado por biblioteca/posición, incluida la exclusión mutua de la documentación A380.
 
-**Limitaciones:** no hay OCR para planos escaneados, búsqueda semántica, lectura automática de símbolos ni trazado automático de entradas/salidas PLC. Los documentos sin texto extraíble no producirán resultados de búsqueda. La apertura embebida depende del visor PDF de Safari/navegador y requiere prueba real en iPhone. La URL firmada es temporal.
+**Limitaciones:** no hay búsqueda semántica, lectura automática de símbolos ni trazado automático de entradas/salidas PLC. La visualización y el OCR requieren validación real en Safari/iPhone; PDF.js y Tesseract.js se cargan desde CDN. Los documentos sin texto extraíble no producirán resultados de búsqueda. La apertura embebida depende del visor PDF de Safari/navegador y requiere prueba real en iPhone. La URL firmada es temporal.
 
 
 ### OCR de planos escaneados
 
 En el visor RCS, selecciona un PDF, introduce la página física (numeración desde 1) y pulsa **OCR de página actual**. El navegador renderiza esa página y Tesseract.js intenta reconocer texto en español e inglés; el resultado se guarda en el índice privado del documento y pasa a ser localizable mediante la búsqueda literal. El proceso es puntual por página, no masivo. La numeración física del PDF puede no coincidir con el folio impreso en el esquema.
 
-La prueba de lectura documental de esta versión se ha realizado sobre el PDF RCS PLANOS.pdf disponible en la Biblioteca de ChatGPT: se pudo extraer texto de la hoja P-A5 (página física 85; folio impreso 86). No se ha podido probar la carga embebida desde Supabase porque ese archivo no está incorporado en la biblioteca privada de la aplicación.
+La documentación de referencia vigente es T87911031210ES_BARAJAS_T4T4S_Rev_J ESQUEMA.pdf (Rev. J, 28/05/2024, 96 páginas físicas), ya subida por el usuario a la biblioteca privada de la PWA. El documento anterior RCS PLANOS.pdf queda sustituido. Falta validar con sesión real que el visor abra el PDF y que OCR escriba el texto en document_chunks.
