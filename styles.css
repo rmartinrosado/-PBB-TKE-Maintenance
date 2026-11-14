@@ -240,3 +240,6 @@ body.has-field-nav{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
 .rcs-hit{display:grid;gap:5px;text-align:left;padding:11px;border:1px solid #d9e3ed;border-radius:10px;background:#f7fafc;color:#263f57}
 .rcs-hit b{font-size:12px}.rcs-hit span{font-size:11px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
 @media(max-width:600px){.rcs-pdf-frame-wrap{height:62vh;min-height:360px}}
+
+/* V2.2 · OCR puntual de hoja escaneada */
+#rcsOcrPage{white-space:normal}
