@@ -16,11 +16,11 @@
 <div id="accountDialog" class="account-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
  <section class="account-sheet">
   <div class="account-head"><div><p class="eyebrow">ACCESO PERSONAL</p><h2 id="accountTitle">Iniciar sesión · TKE</h2></div><button id="accountClose" class="account-close hidden" type="button" aria-label="Cerrar">×</button></div>
-  <p class="account-intro">Acceso único a órdenes, diagnósticos y biblioteca documental. Introduce tu correo y contraseña para entrar.</p>
+  <p class="account-intro">Acceso único a órdenes, diagnósticos y biblioteca documental. Tu cuenta queda fijada en este dispositivo. Si la sesión caduca, usa Face ID para autocompletar la contraseña guardada en el iPhone.</p>
   <div id="accountSigned" class="account-signed hidden"><span class="account-avatar">●</span><div><b id="accountEmail"></b><small>Sesión personal activa</small></div></div>
   <div id="accountForm">
-   <label>Correo electrónico<input id="accountEmailInput" type="email" autocomplete="username" placeholder="tu correo"></label>
-   <label>Contraseña<input id="accountPassword" type="password" autocomplete="current-password" placeholder="Contraseña"></label>
+   <label>Cuenta de acceso<input id="accountEmailInput" type="email" value="rmartinrosado@gmail.com" readonly autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false"></label>
+   <label>Contraseña<input id="accountPassword" type="password" autocomplete="current-password" name="current-password" placeholder="Usa Face ID para autocompletar" autocapitalize="none" spellcheck="false"></label>
    <div class="account-actions"><button id="accountLogin" class="primary" type="button">Iniciar sesión</button><button id="accountCreate" class="secondary" type="button">Crear cuenta</button></div>
   </div>
   <div id="accountLoggedActions" class="account-actions hidden"><button id="accountLogout" class="secondary" type="button">Cerrar sesión</button><button id="accountGoSync" class="primary" type="button">Entrar en la aplicación</button></div>
