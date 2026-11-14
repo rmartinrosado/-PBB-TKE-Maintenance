@@ -24,3 +24,11 @@
 - Búsqueda literal AND de referencias/texto dentro de los fragmentos indexados de un documento. Cada resultado muestra la página/hoja almacenada y permite abrirla en el visor.
 - El selector respeta el filtrado documental por posición, incluida la separación de las bibliotecas A380.
 - Límites: no se incorporó OCR, no se hace búsqueda semántica ni reconocimiento de símbolos, y no se deducen conexiones de E/S PLC. La búsqueda solo encuentra texto extraído durante la subida. La visualización PDF depende del soporte del navegador; debe probarse en Safari iPhone.
+
+
+### OCR puntual (V2.2)
+
+- Añadida acción para ejecutar OCR solo sobre la página PDF seleccionada, con Tesseract.js en español e inglés.
+- El texto reconocido se guarda como fragmento adicional en `document_chunks`, asociado al número de página física del PDF, y queda disponible para la búsqueda literal y el análisis documental.
+- El OCR no se ejecuta automáticamente sobre las 95 páginas: evita consumir memoria/tiempo en móvil y permite seleccionar la hoja escaneada que interesa.
+- La biblioteca de ChatGPT permite comprobar el texto de RCS PLANOS.pdf, pero no proporciona una ruta autorizada para copiar sus bytes al contenedor ni a Supabase desde esta sesión. La validación de extremo a extremo del visor/OCR requiere subir el PDF a la biblioteca privada de la PWA y probarlo con sesión real.
