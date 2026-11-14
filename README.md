@@ -85,3 +85,14 @@ supabase functions deploy claude-plan-vision
 ```
 
 Comprobar que el secreto `ANTHROPIC_API_KEY` está configurado en Supabase Edge Functions. Si la función aún no se ha desplegado, la PWA mostrará el OCR local y señalará que el análisis visual IA no está disponible; no lo presentará como completado.
+
+
+## OCR RCS V3.1 · validación cruzada PDF + OCR + Claude
+
+- Se conserva la capa de texto vectorial nativa cuando contiene suficiente texto técnico, sin utilizarla para omitir el OCR visual.
+- Se ejecuta OCR visual de cuatro zonas y cuatro pasadas incluso cuando el PDF contiene texto vectorial.
+- Las referencias candidatas se contrastan por separado contra tokens PDF y OCR; se guardan recuentos, confianza y coordenadas de cada evidencia.
+- Claude Vision recibe el texto vectorial, el OCR y la evidencia de contraste junto con las imágenes del plano.
+- El resultado se guarda como reconocimiento V4 con bloques diferenciados de referencias clasificadas, validación cruzada, posiciones y coordenadas normalizadas.
+- La confirmación previa presenta un resumen legible sin volcar literalmente la sintaxis Markdown de Claude.
+- Una coincidencia PDF/OCR refuerza la lectura de una etiqueta, pero **no demuestra una conexión eléctrica**. Las conexiones deben seguirse en el esquema y verificarse en campo con el procedimiento autorizado.
