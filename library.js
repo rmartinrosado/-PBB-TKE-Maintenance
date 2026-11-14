@@ -270,8 +270,6 @@ async function ocrRcsCurrentPage(){
    }
    ocrMode="OCR RCS V3: 4 zonas × 4 pasadas + texto vectorial PDF cuando existe";
    ocrConfidence=ocrWords.length?ocrWords.reduce((n,w)=>n+w.c,0)/ocrWords.length:0;
-  }else{
-   ocrMode="extracción vectorial PDF (sin OCR)";
   }
 
   // Fusiona texto nativo y OCR, eliminando repeticiones por posición.
