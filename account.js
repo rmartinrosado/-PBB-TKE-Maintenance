@@ -50,5 +50,5 @@ $("#accountLogout").addEventListener("click",async()=>{
  catch(e){say(e.message||String(e))}
 });
 $("#accountGoSync").addEventListener("click",()=>{close();document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("hidden",p.id!=="dashboard"));$("#dashboard").scrollIntoView({behavior:"smooth",block:"start"});$("#cloudSyncNow")?.scrollIntoView({behavior:"smooth",block:"center"})});
-window.addEventListener("pbb-auth-state-changed",refresh);
+// No escuchar aquí pbb-auth-state-changed: render() emite ese evento y provocaría un bucle recursivo.
 refresh();
