@@ -131,7 +131,7 @@ async function ocrRcsCurrentPage(){
   const pdf=await pdfjs.getDocument({url:signed.signedUrl}).promise;
   if(pageNumber>pdf.numPages)throw Error("El PDF solo tiene "+pdf.numPages+" páginas.");
   const page=await pdf.getPage(pageNumber),base=page.getViewport({scale:1});
-  const scale=Math.min(2.8,6000/Math.max(base.width,base.height),Math.sqrt(16000000/(base.width*base.height)));
+  const scale=Math.min(3.6,7600/Math.max(base.width,base.height),Math.sqrt(22000000/(base.width*base.height)));
   const viewport=page.getViewport({scale:Math.max(1,scale)});
 
   // 1) Primero extrae texto vectorial nativo del PDF: es mucho más fiable que OCR
@@ -188,45 +188,54 @@ async function ocrRcsCurrentPage(){
     {name:"inferior izquierda",x:0,y:.44},{name:"inferior derecha",x:.44,y:.44}
    ];
    const tileW=Math.ceil(W*.56),tileH=Math.ceil(H*.56);
+   const addRecognized=(data,sx,sy,tag,regionName)=>{
+    const raw=String(data?.text||"").replace(/\r/g,"");
+    const clean=raw.split("\n").map(x=>x.replace(/[ \t]+/g," ").trim()).filter(Boolean).join("\n").trim();
+    if(clean)ocrTexts.push("["+tag+" · "+regionName.toUpperCase()+"]\n"+clean);
+    for(const word of (data?.words||[])){
+     const token=String(word.text||"").trim(),bb=word.bbox||{};
+     if(!token||![bb.x0,bb.y0,bb.x1,bb.y1].every(Number.isFinite))continue;
+     const x0=sx+bb.x0,y0=sy+bb.y0,x1=sx+bb.x1,y1=sy+bb.y1;
+     ocrWords.push({t:token,c:Math.round(Number(word.confidence)||0),x:Math.max(0,Math.round(x0/W*1000)),y:Math.max(0,Math.round(y0/H*1000)),w:Math.max(0,Math.round((x1-x0)/W*1000)),h:Math.max(0,Math.round((y1-y0)/H*1000)),cx:(x0+x1)/2,cy:(y0+y1)/2,source:tag});
+    }
+   };
+   const makeVariant=(source,mode)=>{
+    const out=document.createElement("canvas");out.width=tileW;out.height=tileH;
+    const c=out.getContext("2d",{willReadFrequently:true});c.drawImage(source,0,0);
+    const im=c.getImageData(0,0,tileW,tileH),p=im.data;
+    if(mode==="contrast"){
+     for(let k=0;k<p.length;k+=4){const g=.299*p[k]+.587*p[k+1]+.114*p[k+2],v=Math.max(0,Math.min(255,(g-142)*1.65+142));p[k]=p[k+1]=p[k+2]=v;p[k+3]=255;}
+    }else{
+     const cols=Math.ceil(tileW/48),rows=Math.ceil(tileH/48),means=new Float32Array(cols*rows),counts=new Uint16Array(cols*rows);
+     for(let y=0;y<tileH;y++)for(let x=0;x<tileW;x++){const k=(y*tileW+x)*4,g=.299*p[k]+.587*p[k+1]+.114*p[k+2],bi=Math.floor(y/48)*cols+Math.floor(x/48);means[bi]+=g;counts[bi]++;}
+     for(let q=0;q<means.length;q++)means[q]=counts[q]?means[q]/counts[q]:180;
+     for(let y=0;y<tileH;y++)for(let x=0;x<tileW;x++){const k=(y*tileW+x)*4,g=.299*p[k]+.587*p[k+1]+.114*p[k+2],bi=Math.floor(y/48)*cols+Math.floor(x/48),threshold=Math.max(105,Math.min(205,means[bi]-12)),v=g<threshold?0:255;p[k]=p[k+1]=p[k+2]=v;p[k+3]=255;}
+    }
+    c.putImageData(im,0,0);return out;
+   };
+   const passes=[
+    {variant:"contrast",psm:"11",label:"contraste · disperso"},
+    {variant:"adaptive",psm:"11",label:"adaptativo · disperso"},
+    {variant:"adaptive",psm:"6",label:"adaptativo · bloques de texto"},
+    {variant:"contrast",psm:"6",label:"contraste · bloques de texto"}
+   ];
    for(let ri=0;ri<regions.length;ri++){
     const r=regions[ri],sx=Math.round(r.x*W),sy=Math.round(r.y*H);
-    const tile=document.createElement("canvas");tile.width=tileW;tile.height=tileH;
-    const tctx=tile.getContext("2d",{willReadFrequently:true});
-    tctx.fillStyle="#fff";tctx.fillRect(0,0,tileW,tileH);
-    tctx.drawImage(canvas,sx,sy,tileW,tileH,0,0,tileW,tileH);
-    const image=tctx.getImageData(0,0,tileW,tileH),px=image.data;
-    for(let p=0;p<px.length;p+=4){
-     const v=Math.max(0,Math.min(255,(.299*px[p]+.587*px[p+1]+.114*px[p+2]-128)*1.25+128));
-     px[p]=px[p+1]=px[p+2]=v;px[p+3]=255;
+    const crop=document.createElement("canvas");crop.width=tileW;crop.height=tileH;
+    const cropCtx=crop.getContext("2d",{willReadFrequently:true});cropCtx.fillStyle="#fff";cropCtx.fillRect(0,0,tileW,tileH);
+    cropCtx.drawImage(canvas,sx,sy,tileW,tileH,0,0,tileW,tileH);
+    const variants={contrast:makeVariant(crop,"contrast"),adaptive:makeVariant(crop,"adaptive")};
+    crop.width=0;crop.height=0;
+    for(let pi=0;pi<passes.length;pi++){
+     const pass=passes[pi],variant=variants[pass.variant];
+     await worker.setParameters({preserve_interword_spaces:"1",user_defined_dpi:"300",tessedit_pageseg_mode:pass.psm});
+     status.textContent="OCR RCS V3 · zona "+(ri+1)+"/4 · pasada "+(pi+1)+"/4 ("+pass.label+")…";
+     const result=await worker.recognize(variant),data=result?.data||{};
+     addRecognized(data,sx,sy,"OCR-"+pass.variant.toUpperCase()+"-PSM"+pass.psm,r.name);
     }
-    tctx.putImageData(image,0,0);
-    // Pasada A: anotaciones, descripciones y texto general del plano.
-    await worker.setParameters({preserve_interword_spaces:"1",user_defined_dpi:"300",tessedit_pageseg_mode:"11"});
-    status.textContent="OCR general · zona "+(ri+1)+"/4…";
-    const general=await worker.recognize(tile),gd=general?.data||{};
-    const generalText=String(gd.text||"").replace(/\r/g,"").split("\n").map(x=>x.replace(/[ \t]+/g," ").trim()).filter(Boolean).join("\n").trim();
-    if(generalText)ocrTexts.push("["+r.name.toUpperCase()+"]\n"+generalText);
-    for(const word of (gd.words||[])){
-     const token=String(word.text||"").trim(),b=word.bbox||{};
-     if(!token||!Number.isFinite(b.x0)||!Number.isFinite(b.y0))continue;
-     const x0=sx+b.x0,y0=sy+b.y0,x1=sx+b.x1,y1=sy+b.y1;
-     ocrWords.push({t:token,c:Math.round(Number(word.confidence)||0),x:Math.max(0,Math.round(x0/W*1000)),y:Math.max(0,Math.round(y0/H*1000)),w:Math.max(0,Math.round((x1-x0)/W*1000)),h:Math.max(0,Math.round((y1-y0)/H*1000)),cx:(x0+x1)/2,cy:(y0+y1)/2,source:"OCR"});
-    }
-    // Pasada B: etiquetas eléctricas: letras, cifras y separadores típicos de bornes/cables.
-    await worker.setParameters({preserve_interword_spaces:"1",user_defined_dpi:"300",tessedit_pageseg_mode:"11",tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-+./:()_"});
-    status.textContent="OCR de referencias eléctricas · zona "+(ri+1)+"/4…";
-    const focused=await worker.recognize(tile),fd=focused?.data||{};
-    const focusedText=String(fd.text||"").replace(/\r/g,"").split("\n").map(x=>x.replace(/[ \t]+/g," ").trim()).filter(Boolean).join("\n").trim();
-    if(focusedText)ocrTexts.push("[ETIQUETAS "+r.name.toUpperCase()+"]\n"+focusedText);
-    for(const word of (fd.words||[])){
-     const token=String(word.text||"").trim(),b=word.bbox||{};
-     if(!token||!Number.isFinite(b.x0)||!Number.isFinite(b.y0))continue;
-     const x0=sx+b.x0,y0=sy+b.y0,x1=sx+b.x1,y1=sy+b.y1;
-     ocrWords.push({t:token,c:Math.round(Number(word.confidence)||0),x:Math.max(0,Math.round(x0/W*1000)),y:Math.max(0,Math.round(y0/H*1000)),w:Math.max(0,Math.round((x1-x0)/W*1000)),h:Math.max(0,Math.round((y1-y0)/H*1000)),cx:(x0+x1)/2,cy:(y0+y1)/2,source:"OCR-ETIQUETA"});
-    }
-    tile.width=0;tile.height=0;
+    variants.contrast.width=0;variants.contrast.height=0;variants.adaptive.width=0;variants.adaptive.height=0;
    }
-   ocrMode="OCR especializado: 4 zonas × 2 pasadas";
+   ocrMode="OCR RCS V3: 4 zonas × 4 pasadas (contraste/adaptativo · PSM 11/6)";
    ocrConfidence=ocrWords.length?ocrWords.reduce((n,w)=>n+w.c,0)/ocrWords.length:0;
   }else{
    ocrMode="extracción vectorial PDF (sin OCR)";
@@ -241,19 +250,24 @@ async function ocrRcsCurrentPage(){
   const textValue=[nativeText?("[TEXTO VECTORIAL DEL PDF]\n"+nativeText):"",...ocrTexts].filter(Boolean).join("\n\n").trim();
   const usefulWords=words.filter(w=>/[A-Za-z0-9]/.test(w.t)).length;
   const confidence=words.length?words.reduce((n,w)=>n+w.c,0)/words.length:0;
-  const referencePattern=/\b(?:P[- ]?[A-Z]\d{1,3}|DIN[- ]?\d{1,3}|EX[- ]?\d{1,3}|PX[- ]?\d{1,3}|EP[- ]?[A-Z0-9]{1,6}|CON[- ]?\d{1,3}|[A-Z]{1,3}[- ]\d{2,4}|\d{3})\b/gi;
-  const references=[...new Set((textValue.match(referencePattern)||[]).map(x=>x.toUpperCase().replace(/\s+/g,"")))];
+  const normalizedText=textValue.toUpperCase().replace(/[–—_]/g,"-");
+  const devicePattern=/\b(?:P\s*-\s*[A-Z]\s*\d{1,3}|DIN\s*-?\s*\d{1,3}|EX\s*-?\s*\d{1,3}|PX\s*-?\s*\d{1,3}|EP\s*-\s*[A-Z0-9]{1,6}|CON\s*-?\s*\d{1,3}|[LKX]\s*\d{1,3})\b/g;
+  const deviceRefs=[...new Set((normalizedText.match(devicePattern)||[]).map(x=>x.replace(/\s+/g,"").replace(/--+/g,"-")))];
+  const conductorRefs=[...new Set(ocrWords.filter(w=>/^\d{3}$/.test(w.t)&&w.c>=55).map(w=>w.t))];
+  const cableRefs=[...new Set((normalizedText.match(/\b(?:H07RN-F|\d{1,2}\s*[xX]\s*\d+(?:[,.]\d+)?|\d{1,2}\s*[xX]\s*\d+\s*\+\s*C)\b/g)||[]).map(x=>x.replace(/\s+/g,"")))];
+  const references=[...new Set([...deviceRefs,...conductorRefs,...cableRefs])];
+  const referenceClasses={equipos:deviceRefs,conductores:conductorRefs,cables:cableRefs};
   if(usefulWords<5||textValue.replace(/\s/g,"").length<18){
    throw Error("No se ha reconocido texto suficiente; no se ha guardado nada. Palabras útiles: "+usefulWords+". Comprueba que el PDF tenga resolución adecuada.");
   }
   const boxRows=words.slice(0,3000).map(({t,c,x,y,w,h,source})=>({t,c,x,y,w,h,source}));
-  const preview="RECONOCIMIENTO DE PLANO · BUILD 2.6.0 · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: ignorado para evitar coordenadas y texto CAD engañosos ("+nativeAlphaTokens.length+" tokens alfabéticos detectados)\nPalabras OCR detectadas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
+  const preview="RECONOCIMIENTO DE PLANO · BUILD 3.0.0 · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: ignorado para evitar coordenadas y texto CAD engañosos ("+nativeAlphaTokens.length+" tokens alfabéticos detectados)\nPalabras OCR detectadas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
   status.textContent="Análisis del plano terminado. Revisa el resultado antes de guardarlo.";
   if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="Análisis cancelado. No se ha guardado ningún dato.";return;}
   const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);
   if(lastError)throw lastError;
   const nextIndex=(lastRows?.[0]?.chunk_index??-1)+1;
-  const content="[RECONOCIMIENTO PLANO página "+pageNumber+" · "+ocrMode+" · confianza OCR "+Math.round(ocrConfidence)+"%]\n"+textValue+"\n\n[REFERENCIAS_DETECTADAS]\n"+references.join(", ")+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows);
+  const content="[RECONOCIMIENTO PLANO RCS V3 página "+pageNumber+" · "+ocrMode+" · confianza OCR "+Math.round(ocrConfidence)+"%]\n"+textValue+"\n\n[REFERENCIAS_CLASIFICADAS]\n"+JSON.stringify(referenceClasses)+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows);
   const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content});
   if(insertError)throw insertError;
   const legacyPrefixes=["[OCR página%","[OCR POR ZONAS página%"];
