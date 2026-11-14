@@ -246,11 +246,15 @@ async function ocrRcsCurrentPage(){
   const content="[RECONOCIMIENTO PLANO página "+pageNumber+" · "+ocrMode+" · confianza OCR "+Math.round(ocrConfidence)+"%]\n"+textValue+"\n\n[REFERENCIAS_DETECTADAS]\n"+references.join(", ")+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows);
   const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content});
   if(insertError)throw insertError;
-  const {error:cleanupError}=await sb.from("document_chunks").delete().eq("document_id",id).eq("page_label",String(pageNumber)).like("content","[OCR página%");
-  if(cleanupError)status.textContent="Nuevo reconocimiento guardado; no se pudieron limpiar automáticamente los OCR antiguos de esta página.";
-  const {data:meta,error:metaError}=await sb.from("documents").select("extracted_chars").eq("id",id).single();
-  if(metaError)throw metaError;
-  const {error:updateError}=await sb.from("documents").update({extracted_chars:(meta.extracted_chars||0)+textValue.length}).eq("id",id);
+  const legacyPrefixes=["[OCR página%","[OCR POR ZONAS página%"];
+  for(const prefix of legacyPrefixes){
+   const {error:cleanupError}=await sb.from("document_chunks").delete().eq("document_id",id).eq("page_label",String(pageNumber)).like("content",prefix);
+   if(cleanupError)status.textContent="Nuevo reconocimiento guardado; quedan registros OCR antiguos de esta página que no se pudieron limpiar.";
+  }
+  const {data:allChunks,error:chunksError}=await sb.from("document_chunks").select("content").eq("document_id",id);
+  if(chunksError)throw chunksError;
+  const totalChars=(allChunks||[]).reduce((sum,row)=>sum+String(row.content||"").length,0);
+  const {error:updateError}=await sb.from("documents").update({extracted_chars:totalChars}).eq("id",id);
   if(updateError)throw updateError;
   status.textContent="Reconocimiento guardado · página "+pageNumber+" · "+usefulWords+" palabras · "+references.length+" códigos candidatos · "+ocrMode+". Coordenadas conservadas.";
  }finally{
