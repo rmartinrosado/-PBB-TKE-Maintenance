@@ -4,7 +4,7 @@ let sb=null,session=null,docs=[],clientConfig="";
 const A380_PBBS=new Set(["504","507","508"]);
 const currentPbb=()=>String($("#casePbb")?.value||"").trim().replace(/^PBB[- ]?/i,"");
 function docAllowed(d,pbb=currentPbb()){const scope=String(d.pbb_scope||"GENERAL").trim().toUpperCase();if(!pbb)return true;if(A380_PBBS.has(pbb))return scope==="A380_SPECIAL"||scope===pbb;if(scope==="A380_SPECIAL")return false;if(scope==="COMMON"||scope==="GENERAL"||scope==="")return true;return scope===pbb;}
-function refreshDocChecks(){document.querySelectorAll(".docpick").forEach(el=>{const d=docs.find(x=>x.id===el.value),ok=d&&docAllowed(d);el.disabled=!ok;el.checked=!!ok;const row=el.closest(".docrow");if(row){row.style.opacity=ok?"1":".42";row.title=ok?"Documento aplicable":"No corresponde a la biblioteca de esta posición";}})}
+function refreshDocChecks(){document.querySelectorAll(".docpick").forEach(el=>{const d=docs.find(x=>x.id===el.value),ok=!!(d&&docAllowed(d));el.disabled=!ok;if(!ok)el.checked=false;const row=el.closest(".docrow");if(row){row.style.opacity=ok?"1":".42";row.title=ok?"Documento aplicable":"No corresponde a la biblioteca de esta posición";}})}
 const say=s=>{const n=$("#libStatus");if(n)n.textContent=s};
 function persistSupabaseFields(){
  const url=$("#sbUrl")?.value.trim()||"";
@@ -311,7 +311,7 @@ async function ocrRcsCurrentPage(){
     shot.width=0;shot.height=0;
    }
    status.textContent="Claude Vision está contrastando etiquetas, símbolos y conexiones…";
-   const {data:visionData,error:visionError}=await sb.functions.invoke("claude-plan-vision",{body:{documentId:id,pageNumber,images:visualImages,ocrText:textValue.slice(0,9000),nativeText:nativeText.slice(0,6000),referenceEvidence:referenceValidation,references}});
+   const {data:visionData,error:visionError}=await sb.functions.invoke("claude-plan-vision",{body:{documentId:id,pageNumber,pbb:currentPbb(),images:visualImages,ocrText:textValue.slice(0,9000),nativeText:nativeText.slice(0,6000),referenceEvidence:referenceValidation,references}});
    if(visionError){let detail=visionError.message||"No se pudo llamar al análisis visual.";const response=visionError.context;if(response&&typeof response.clone==="function"){try{const raw=await response.clone().text();let payload={};try{payload=JSON.parse(raw)}catch{}detail=payload.error||payload.message||raw.slice(0,900)||detail;if(response.status===404)detail="La Edge Function claude-plan-vision está en GitHub, pero aún no está desplegada en Supabase.";}catch{}}throw Error(detail);}
    if(visionData?.error)throw Error(visionData.error);
    visionAnalysis=String(visionData?.answer||"");visionModel=String(visionData?.model||"Claude Vision");
@@ -359,7 +359,7 @@ async function searchRcsReference(){
 }
 
 async function openDoc(id){await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,60);if(error)throw error;const a=document.createElement("a");a.href=data.signedUrl;a.target="_blank";a.rel="noopener";a.click()}
-async function removeDoc(id){if(!confirm("¿Eliminar el documento privado y su índice?"))return;await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {error}=await sb.from("documents").delete().eq("id",id);if(error)throw error;const {error:storageError}=await sb.storage.from("pbb-private-docs").remove([d.storage_path]);if(storageError)throw storageError;await list()}
+async function removeDoc(id){if(!confirm("¿Eliminar el documento privado y su índice?"))return;await ensure();const d=docs.find(x=>x.id===id);if(!d)return;const {error:storageError}=await sb.storage.from("pbb-private-docs").remove([d.storage_path]);if(storageError)throw new Error("No se pudo eliminar el PDF de Storage; la ficha y el índice se conservan. "+storageError.message);const {error}=await sb.from("documents").delete().eq("id",id);if(error)throw new Error("El PDF se ha eliminado, pero no se pudo borrar la ficha. Reintenta la eliminación: "+error.message);await list()}
 async function analyze(){
  const button=$("#claudeRun"),answer=$("#claudeAnswer"),sources=$("#claudeSources");
  try{
@@ -419,5 +419,5 @@ $("#sbRegister")?.addEventListener("click",async()=>{
  }catch(e){say("Error al crear usuario: "+(e.message||String(e)))}
 });
 $("#sbLogout")?.addEventListener("click",async()=>{try{const client=getSupabaseClient();await client.auth.signOut();session=null;docs=[];$("#docList").innerHTML="<p class=\"sub\">Inicia sesión para cargar el catálogo privado.</p>";say("Sesión cerrada.")}catch(e){say(e.message)}});
-$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
+$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
 boot();
