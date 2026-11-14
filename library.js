@@ -280,7 +280,7 @@ async function ocrRcsCurrentPage(){
     shot.width=0;shot.height=0;
    }
    status.textContent="Claude Vision está contrastando etiquetas, símbolos y conexiones…";
-   const {data:visionData,error:visionError}=await sb.functions.invoke("claude-plan-vision",{body:{documentId:id,pageNumber,images:visualImages,ocrText:textValue.slice(0,9000),references}});
+   const {data:visionData,error:visionError}=await sb.functions.invoke("claude-plan-vision",{body:{documentId:id,pageNumber,images:visualImages,ocrText:textValue.slice(0,9000),nativeText:nativeText.slice(0,6000),referenceEvidence:referenceValidation,references}});
    if(visionError){let detail=visionError.message||"No se pudo llamar al análisis visual.";const response=visionError.context;if(response&&typeof response.clone==="function"){try{const raw=await response.clone().text();let payload={};try{payload=JSON.parse(raw)}catch{}detail=payload.error||payload.message||raw.slice(0,900)||detail;if(response.status===404)detail="La Edge Function claude-plan-vision está en GitHub, pero aún no está desplegada en Supabase.";}catch{}}throw Error(detail);}
    if(visionData?.error)throw Error(visionData.error);
    visionAnalysis=String(visionData?.answer||"");visionModel=String(visionData?.model||"Claude Vision");
