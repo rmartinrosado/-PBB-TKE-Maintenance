@@ -117,30 +117,105 @@ async function openRcsViewer(page){
 async function ocrRcsCurrentPage(){
  const session=await ensure(),id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);
  const pageNumber=Math.max(1,parseInt($("#rcsViewerPage")?.value||"1",10)||1);
- if(!d)throw Error("Selecciona primero un PDF.");if(!String(d.mime_type||"").includes("pdf")&&!String(d.file_name||"").toLowerCase().endsWith(".pdf"))throw Error("El documento seleccionado no es PDF.");
- const status=$("#rcsViewerStatus"),button=$("#rcsOcrPage");button.disabled=true;button.textContent="Preparando OCR…";
+ if(!d)throw Error("Selecciona primero un PDF.");
+ if(!String(d.mime_type||"").includes("pdf")&&!String(d.file_name||"").toLowerCase().endsWith(".pdf"))throw Error("El documento seleccionado no es PDF.");
+ const status=$("#rcsViewerStatus"),button=$("#rcsOcrPage");
+ button.disabled=true;button.textContent="Preparando OCR…";
+ let worker=null,canvas=null;
  try{
-  status.textContent="Descargando la página privada y preparando OCR. En iPhone puede tardar unos minutos…";
-  const {data:signed,error:signedError}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,300);if(signedError)throw signedError;
+  status.textContent="Descargando el PDF privado…";
+  const {data:signed,error:signedError}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,300);
+  if(signedError)throw signedError;
   const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
-  const pdf=await pdfjs.getDocument(signed.signedUrl).promise;if(pageNumber>pdf.numPages)throw Error("El PDF solo tiene "+pdf.numPages+" páginas.");
-  const page=await pdf.getPage(pageNumber),viewport=page.getViewport({scale:2}),canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+  const pdf=await pdfjs.getDocument({url:signed.signedUrl}).promise;
+  if(pageNumber>pdf.numPages)throw Error("El PDF solo tiene "+pdf.numPages+" páginas.");
+  const page=await pdf.getPage(pageNumber),base=page.getViewport({scale:1});
+  const scale=Math.min(3.2,6500/Math.max(base.width,base.height),Math.sqrt(20000000/(base.width*base.height)));
+  const viewport=page.getViewport({scale:Math.max(1.5,scale)});
+  canvas=document.createElement("canvas");
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
   canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
-  await page.render({canvasContext:ctx,viewport}).promise;status.textContent="Página renderizada. Reconociendo texto con OCR español e inglés…";
+  if(canvas.width*canvas.height>24000000)throw Error("La página es demasiado grande para procesarla con seguridad en este dispositivo. Reduce la resolución del PDF o utiliza un equipo con más memoria.");
+  status.textContent="Renderizando página "+pageNumber+" a "+Math.round(scale*100)+"%…";
+  await page.render({canvasContext:ctx,viewport,background:"#ffffff"}).promise;
+
+  // Prepara dos variantes: escala de grises con contraste y binarización Otsu.
+  const source=ctx.getImageData(0,0,canvas.width,canvas.height),gray=new Uint8ClampedArray(source.data.length/4);
+  let hist=new Uint32Array(256);
+  for(let i=0,p=0;i<source.data.length;i+=4,p++){
+   const v=Math.round(.299*source.data[i]+.587*source.data[i+1]+.114*source.data[i+2]);
+   gray[p]=v;hist[v]++;
+  }
+  let total=gray.length,sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];
+  let sumB=0,wB=0,maxVariance=-1,threshold=180;
+  for(let i=0;i<256;i++){wB+=hist[i];if(!wB)continue;const wF=total-wB;if(!wF)break;sumB+=i*hist[i];const mB=sumB/wB,mF=(sum-sumB)/wF;const variance=wB*wF*(mB-mF)*(mB-mF);if(variance>maxVariance){maxVariance=variance;threshold=i;}}
+  const makeVariant=(binary)=>{
+   const c=document.createElement("canvas");c.width=canvas.width;c.height=canvas.height;
+   const cctx=c.getContext("2d",{willReadFrequently:true}),img=cctx.createImageData(c.width,c.height);
+   for(let p=0,j=0;p<gray.length;p++,j+=4){
+    let v=gray[p];
+    if(binary)v=v<threshold?0:255;
+    else v=Math.max(0,Math.min(255,(v-128)*1.45+128));
+    img.data[j]=img.data[j+1]=img.data[j+2]=v;img.data[j+3]=255;
+   }
+   cctx.putImageData(img,0,0);return c;
+  };
+  const variants=[{name:"contraste",canvas:makeVariant(false)},{name:"alto contraste",canvas:makeVariant(true)}];
+  status.textContent="Cargando OCR español e inglés…";
   const Tesseract=await import("https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm");
-  const worker=await Tesseract.createWorker("spa+eng",1,{logger:m=>{if(m.status==="recognizing text")status.textContent="OCR página "+pageNumber+": "+Math.round((m.progress||0)*100)+"%";}});
-  let result;try{result=await worker.recognize(canvas)}finally{await worker.terminate()}
-  const textValue=String(result?.data?.text||"").replace(/\s+/g," ").trim();canvas.width=0;canvas.height=0;
-  if(textValue.length<8)throw Error("OCR sin texto suficiente en la página "+pageNumber+". Prueba con otra escala o comprueba la calidad del escaneo.");
-  const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);if(lastError)throw lastError;
+  worker=await Tesseract.createWorker("spa+eng",1,{logger:m=>{
+   if(m.status==="recognizing text")status.textContent="OCR "+pageNumber+" · "+Math.round((m.progress||0)*100)+"%";
+   else if(m.status)status.textContent="OCR: "+m.status+"…";
+  }});
+  await worker.setParameters({preserve_interword_spaces:"1",user_defined_dpi:"300"});
+  const candidates=[];
+  for(let i=0;i<variants.length;i++){
+   const variant=variants[i];
+   status.textContent="Reconociendo variante "+(i+1)+" de "+variants.length+" ("+variant.name+")…";
+   await worker.setParameters({tessedit_pageseg_mode:i===0?"11":"6"});
+   const result=await worker.recognize(variant.canvas);
+   const data=result?.data||{},text=String(data.text||"").replace(/\r/g,"").split("\n").map(x=>x.replace(/[ \t]+/g," ").trim()).filter(Boolean).join("\n").trim();
+   const words=(data.words||[]).filter(w=>String(w.text||"").trim()&&w.bbox);
+   const confidence=words.length?words.reduce((n,w)=>n+(Number(w.confidence)||0),0)/words.length:Number(data.confidence)||0;
+   const usefulWords=words.filter(w=>/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(w.text||"")).length;
+   const electrical=(text.match(/\b(?:P[- ]?A\d+|DIN\d{2,}|EX[- ]?\d+|PX[- ]?\d+|EP[- ]?\w+|[A-Z]{1,4}[- ]?\d{2,4}|\d{3,4})\b/gi)||[]).length;
+   const score=usefulWords*2+Math.min(text.length,2500)/35+electrical*5+confidence/12;
+   candidates.push({name:variant.name,text,words,confidence,usefulWords,electrical,score});
+   variant.canvas.width=0;variant.canvas.height=0;
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  const best=candidates[0];
+  if(!best||best.usefulWords<3||best.text.replace(/\s/g,"").length<12||best.confidence<20){
+   const detail=best?("Palabras detectadas: "+best.usefulWords+" · confianza media: "+Math.round(best.confidence)+"% · caracteres: "+best.text.length):"Sin resultado OCR";
+   throw Error("Reconocimiento insuficiente; no se ha guardado nada. "+detail+". La página puede ser un escaneo de baja calidad o contener texto demasiado pequeño.");
+  }
+  const boxRows=best.words.slice(0,1800).map(w=>{
+   const b=w.bbox||{},x=Math.round((b.x0||0)/canvas.width*1000),y=Math.round((b.y0||0)/canvas.height*1000);
+   const width=Math.max(0,Math.round(((b.x1||0)-(b.x0||0))/canvas.width*1000)),height=Math.max(0,Math.round(((b.y1||0)-(b.y0||0))/canvas.height*1000));
+   return {t:String(w.text||"").trim(),c:Math.round(Number(w.confidence)||0),x,y,w:width,h:height};
+  });
+  const preview="OCR · página "+pageNumber+" · variante "+best.name+"\nConfianza media: "+Math.round(best.confidence)+"% · palabras: "+best.usefulWords+" · referencias/códigos detectados: "+best.electrical+"\n\n"+best.text.slice(0,2600);
+  status.textContent="OCR completado. Revisa el texto antes de guardarlo.";
+  if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="OCR cancelado por el usuario. No se ha guardado ningún dato.";return;}
+  const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);
+  if(lastError)throw lastError;
   const nextIndex=(lastRows?.[0]?.chunk_index??-1)+1;
-  const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content:"[OCR página "+pageNumber+"] "+textValue});if(insertError)throw insertError;
-  const {data:meta,error:metaError}=await sb.from("documents").select("extracted_chars").eq("id",id).single();if(metaError)throw metaError;
-  const {error:updateError}=await sb.from("documents").update({extracted_chars:(meta.extracted_chars||0)+textValue.length}).eq("id",id);if(updateError)throw updateError;
-  status.textContent="OCR guardado en el índice: página "+pageNumber+" · "+textValue.length+" caracteres. Ya puedes buscar referencias en esta página.";
+  const coordinateText="\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows);
+  const content="[OCR página "+pageNumber+" · "+best.name+" · confianza "+Math.round(best.confidence)+"%]\n"+best.text+coordinateText;
+  const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content});
+  if(insertError)throw insertError;
+  const {data:meta,error:metaError}=await sb.from("documents").select("extracted_chars").eq("id",id).single();
+  if(metaError)throw metaError;
+  const {error:updateError}=await sb.from("documents").update({extracted_chars:(meta.extracted_chars||0)+best.text.length}).eq("id",id);
+  if(updateError)throw updateError;
+  status.textContent="OCR guardado · página "+pageNumber+" · "+best.text.length+" caracteres · "+best.usefulWords+" palabras · confianza "+Math.round(best.confidence)+"% · "+best.electrical+" posibles referencias/códigos. Coordenadas conservadas.";
   await searchRcsReference().catch(()=>{});
- }finally{button.disabled=false;button.textContent="OCR de página actual"}
+ }finally{
+  if(worker)await worker.terminate().catch(()=>{});
+  if(canvas){canvas.width=0;canvas.height=0;}
+  button.disabled=false;button.textContent="OCR de página actual";
+ }
 }
 async function searchRcsReference(){
  await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id),q=$("#rcsViewerQuery")?.value.trim();
