@@ -59,3 +59,10 @@ No fusionar en producción hasta superar estas pruebas.
 La rama de desarrollo incorpora un visor de PDF privado con navegación a página y búsqueda literal en el índice de texto de Supabase. Los resultados muestran el número de página/hoja indexado y permiten abrir esa página en el visor. La selección de documentos conserva el filtrado por biblioteca/posición, incluida la exclusión mutua de la documentación A380.
 
 **Limitaciones:** no hay OCR para planos escaneados, búsqueda semántica, lectura automática de símbolos ni trazado automático de entradas/salidas PLC. Los documentos sin texto extraíble no producirán resultados de búsqueda. La apertura embebida depende del visor PDF de Safari/navegador y requiere prueba real en iPhone. La URL firmada es temporal.
+
+
+### OCR de planos escaneados
+
+En el visor RCS, selecciona un PDF, introduce la página física (numeración desde 1) y pulsa **OCR de página actual**. El navegador renderiza esa página y Tesseract.js intenta reconocer texto en español e inglés; el resultado se guarda en el índice privado del documento y pasa a ser localizable mediante la búsqueda literal. El proceso es puntual por página, no masivo. La numeración física del PDF puede no coincidir con el folio impreso en el esquema.
+
+La prueba de lectura documental de esta versión se ha realizado sobre el PDF RCS PLANOS.pdf disponible en la Biblioteca de ChatGPT: se pudo extraer texto de la hoja P-A5 (página física 85; folio impreso 86). No se ha podido probar la carga embebida desde Supabase porque ese archivo no está incorporado en la biblioteca privada de la aplicación.
