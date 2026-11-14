@@ -16,10 +16,16 @@ function persistSupabaseFields(){
  localStorage.setItem("pbb-sb-anon",key);
  window.dispatchEvent(new CustomEvent("pbb-supabase-config-changed"));
 }
-$("#sbUrl")?.addEventListener("input",persistSupabaseFields);
-$("#sbUrl")?.addEventListener("change",persistSupabaseFields);
-$("#sbKey")?.addEventListener("input",persistSupabaseFields);
-$("#sbKey")?.addEventListener("change",persistSupabaseFields);
+// Guardar automáticamente solo cuando ambos campos están completos.
+function persistSupabaseFieldsIfComplete(){
+ const url=$("#sbUrl")?.value.trim()||"",key=$("#sbKey")?.value.trim()||"";
+ if(!url||!key)return false;
+ try{persistSupabaseFields();return true}catch(e){say("Configuración no válida: "+e.message);return false}
+}
+["input","change","blur"].forEach(event=>{
+ $("#sbUrl")?.addEventListener(event,persistSupabaseFieldsIfComplete);
+ $("#sbKey")?.addEventListener(event,persistSupabaseFieldsIfComplete);
+});
 
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function config(){
@@ -35,7 +41,14 @@ function config(){
 }
 // Un único cliente Supabase para cuenta, biblioteca y sincronización.
 window.PBB_GET_SUPABASE_CLIENT=()=>getSupabaseClient();
-$("#sbSaveConfig").onclick=()=>{try{persistSupabaseFields();config();say("Configuración guardada correctamente en este dispositivo. Ahora inicia sesión con tu correo y contraseña.");window.dispatchEvent(new CustomEvent("pbb-supabase-config-changed"))}catch(e){say("No se guardó la configuración: "+e.message)}};
+$("#sbSaveConfig")?.addEventListener("click",()=>{
+ try{
+  persistSupabaseFields();
+  const c=config();
+  say("Configuración guardada correctamente en este dispositivo. Comprueba ahora el acceso con tu correo y contraseña.");
+  window.dispatchEvent(new CustomEvent("pbb-supabase-config-changed"));
+ }catch(e){say("No se guardó la configuración: "+(e.message||String(e)))}
+});
 async function ensure(){
  const c=config(),{data,error}=await c.auth.getSession();if(error)throw error;session=data.session;
  if(!session)throw Error("Configuración encontrada, pero no hay sesión activa. Inicia sesión en Panel operativo → Configuración de sincronización privada.");
@@ -378,8 +391,28 @@ $("#caseForm")?.addEventListener("submit",()=>{
  if(q&&!q.value.trim())q.value="Analiza desde cero la alarma: "+String(f.get("fault")||"").trim()+". Para PBB-"+$("#casePbb").value+", identifica en la documentación seleccionada el origen y destino del elemento implicado, las referencias y bornes acreditados, y propone comprobaciones discriminantes seguras. Separa hechos documentados, hipótesis y datos pendientes; cita documento y página. No inventes conexiones ni anules seguridades.";
  refreshDocChecks();
 });
-$("#sbConnect").onclick=async()=>{const button=$("#sbConnect");button.disabled=true;try{persistSupabaseFields();const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");say("Conectando con Supabase Auth…");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated:true,email:session?.user?.email||null}}));say("Sesión iniciada correctamente. Cargando biblioteca privada…");await list().catch(e=>say("Sesión iniciada, pero la biblioteca devolvió un error: "+e.message))}catch(e){say("Error de acceso: "+(e.message||String(e)))}finally{button.disabled=false}};
-$("#sbRegister").onclick=async()=>{try{const c=config(),{error}=await c.auth.signUp({email:$("#sbEmail").value.trim(),password:$("#sbPassword").value});if(error)throw error;say("Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.")}catch(e){say(e.message)}};
+$("#sbConnect")?.addEventListener("click",async()=>{
+ const button=$("#sbConnect");if(!button)return;button.disabled=true;
+ try{
+  persistSupabaseFields();const c=config();
+  const email=$("#sbEmail")?.value.trim()||"",password=$("#sbPassword")?.value||"";
+  if(!email||!password)throw Error("Introduce correo y contraseña en el Panel operativo.");
+  say("Conectando con Supabase Auth…");
+  const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;
+  session=data.session;
+  window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated:true,email:session?.user?.email||null}}));
+  say("Sesión iniciada. Cargando biblioteca privada…");
+  await list();
+ }catch(e){say("Error de acceso: "+(e.message||String(e)));}
+ finally{button.disabled=false}
+});
+$("#sbRegister")?.addEventListener("click",async()=>{
+ try{persistSupabaseFields();const c=config(),email=$("#sbEmail")?.value.trim()||"",password=$("#sbPassword")?.value||"";
+ if(!email||!password)throw Error("Introduce correo y contraseña.");
+ const {data,error}=await c.auth.signUp({email,password});if(error)throw error;
+ say(data.session?"Cuenta creada y sesión iniciada.":"Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.");
+ }catch(e){say("Error al crear usuario: "+(e.message||String(e)))}
+});
 $("#sbLogout").onclick=async()=>{try{if(sb)await sb.auth.signOut();session=null;docs=[];$("#docList").innerHTML="";say("Sesión cerrada.")}catch(e){say(e.message)}};
 $("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
 boot();
