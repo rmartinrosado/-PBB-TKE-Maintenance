@@ -342,6 +342,8 @@ async function analyze(){
  }catch(e){const message=e?.message||String(e);answer.textContent="NO SE HA PODIDO REALIZAR EL ANÁLISIS\n\n"+message+"\n\nSi falta ANTHROPIC_API_KEY, configura ese secreto en Supabase. Si aparece 404, despliega claude-diagnose. Consulta los registros de Edge Functions para errores internos.";sources.innerHTML="";say("Error de análisis: "+message);answer.scrollIntoView({behavior:"smooth",block:"center"})}
  finally{button.disabled=false;button.textContent="Analizar con Claude"}
 }
+window.addEventListener("pbb-auth-state-changed",async(event)=>{try{if(event.detail?.authenticated){config();await list()}else{docs=[];const select=$("#rcsViewerDoc");if(select)select.innerHTML='<option value="">Inicia sesión para cargar documentos</option>';const listNode=$("#docList");if(listNode)listNode.innerHTML='<p class="sub">Inicia sesión para cargar el catálogo privado.</p>';say("Sesión cerrada. Inicia sesión para consultar la biblioteca privada.")}}catch(e){say("Biblioteca: "+(e.message||String(e)))}});
+window.addEventListener("pageshow",async()=>{try{if(localStorage.getItem("pbb-sb-url")&&localStorage.getItem("pbb-sb-anon")){config();const {data,error}=await sb.auth.getSession();if(error)throw error;if(data.session)await list()}}catch(e){say("Biblioteca: "+(e.message||String(e)))}});
 async function boot(){
  const url=localStorage.getItem("pbb-sb-url"),key=localStorage.getItem("pbb-sb-anon");
  if(url&&$("#sbUrl"))$("#sbUrl").value=url;if(key&&$("#sbKey"))$("#sbKey").value=key;
