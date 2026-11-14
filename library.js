@@ -155,8 +155,15 @@ async function ocrRcsCurrentPage(){
    nativeLines.push({x,y,text:item.str.trim()});
   }
   nativeLines.sort((a,b)=>Math.abs(a.y-b.y)>3?a.y-b.y:a.x-b.x);
-  const nativeText=nativeLines.map(x=>x.text).join("\n").trim();
-  const hasUsefulVectorText=nativeWords.length>=8||nativeText.replace(/\s/g,"").length>=45;
+  const nativeTextCandidate=nativeLines.map(x=>x.text).join("\n").trim();
+  // No basta con que el PDF devuelva muchos tokens: los planos CAD suelen
+  // exponer rejillas y numeración aislada como si fueran texto válido.
+  const nativeAlphaTokens=nativeWords.filter(w=>/[A-Za-z]/.test(w.t)&&w.t.replace(/[^A-Za-z]/g,"").length>=2);
+  const nativeAlnumTokens=nativeWords.filter(w=>/[A-Za-z0-9]/.test(w.t));
+  const nativeAlphaRatio=nativeAlnumTokens.length?nativeAlphaTokens.length/nativeAlnumTokens.length:0;
+  const nativeHasTechnicalText=nativeAlphaTokens.length>=14&&nativeAlphaRatio>=0.22;
+  const nativeText=nativeHasTechnicalText?nativeTextCandidate:"";
+  const hasUsefulVectorText=nativeHasTechnicalText;
 
   canvas=document.createElement("canvas");
   const ctx=canvas.getContext("2d",{willReadFrequently:true});
@@ -165,6 +172,7 @@ async function ocrRcsCurrentPage(){
   await page.render({canvasContext:ctx,viewport,background:"#ffffff"}).promise;
 
   let ocrWords=[],ocrTexts=[],ocrConfidence=0,ocrMode="sin OCR (texto vectorial PDF)";
+  if(!hasUsefulVectorText){nativeWords.length=0;status.textContent="Texto vectorial insuficiente o dominado por números: activando OCR técnico…";}
   // 2) Solo si el PDF carece de una capa de texto útil, aplica OCR especializado
   // en zonas solapadas y una segunda pasada restringida a caracteres de referencias.
   if(!hasUsefulVectorText){
@@ -231,13 +239,13 @@ async function ocrRcsCurrentPage(){
   const textValue=[nativeText?("[TEXTO VECTORIAL DEL PDF]\n"+nativeText):"",...ocrTexts].filter(Boolean).join("\n\n").trim();
   const usefulWords=words.filter(w=>/[A-Za-z0-9]/.test(w.t)).length;
   const confidence=words.length?words.reduce((n,w)=>n+w.c,0)/words.length:0;
-  const referencePattern=/\b(?:P[- ]?[A-Z]\d{1,3}|DIN[- ]?\d{1,3}|EX[- ]?\d{1,3}|PX[- ]?\d{1,3}|EP[- ]?[A-Z0-9]{1,6}|CON[- ]?\d{1,3}|[A-Z]{1,3}[- ]\d{2,4}|\d{3,4})\b/gi;
+  const referencePattern=/\b(?:P[- ]?[A-Z]\d{1,3}|DIN[- ]?\d{1,3}|EX[- ]?\d{1,3}|PX[- ]?\d{1,3}|EP[- ]?[A-Z0-9]{1,6}|CON[- ]?\d{1,3}|[A-Z]{1,3}[- ]\d{2,4}|\d{3})\b/gi;
   const references=[...new Set((textValue.match(referencePattern)||[]).map(x=>x.toUpperCase().replace(/\s+/g,"")))];
   if(usefulWords<5||textValue.replace(/\s/g,"").length<18){
    throw Error("No se ha reconocido texto suficiente; no se ha guardado nada. Palabras útiles: "+usefulWords+". Comprueba que el PDF tenga resolución adecuada.");
   }
   const boxRows=words.slice(0,3000).map(({t,c,x,y,w,h,source})=>({t,c,x,y,w,h,source}));
-  const preview="RECONOCIMIENTO DE PLANO · página "+pageNumber+"\nMétodo: "+ocrMode+"\nPalabras detectadas: "+usefulWords+" · confianza OCR: "+Math.round(ocrConfidence)+"% (no equivale a precisión técnica)\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
+  const preview="RECONOCIMIENTO DE PLANO · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial: "+(nativeHasTechnicalText?"aceptado ("+nativeAlphaTokens.length+" tokens alfabéticos; "+Math.round(nativeAlphaRatio*100)+"% del texto)":"rechazado por baja calidad; OCR activado")+"\nPalabras detectadas: "+usefulWords+" · confianza OCR: "+(ocrWords.length?Math.round(ocrConfidence)+"%":"no aplicable")+"\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
   status.textContent="Análisis del plano terminado. Revisa el resultado antes de guardarlo.";
   if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="Análisis cancelado. No se ha guardado ningún dato.";return;}
   const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);
