@@ -52,3 +52,10 @@ Esta rama es una propuesta de desarrollo separada de `main`. Antes de publicarla
 - Actualización del service worker y funcionamiento offline.
 
 No fusionar en producción hasta superar estas pruebas.
+
+
+## Visor RCS · entrega inicial V2.1
+
+La rama de desarrollo incorpora un visor de PDF privado con navegación a página y búsqueda literal en el índice de texto de Supabase. Los resultados muestran el número de página/hoja indexado y permiten abrir esa página en el visor. La selección de documentos conserva el filtrado por biblioteca/posición, incluida la exclusión mutua de la documentación A380.
+
+**Limitaciones:** no hay OCR para planos escaneados, búsqueda semántica, lectura automática de símbolos ni trazado automático de entradas/salidas PLC. Los documentos sin texto extraíble no producirán resultados de búsqueda. La apertura embebida depende del visor PDF de Safari/navegador y requiere prueba real en iPhone. La URL firmada es temporal.
