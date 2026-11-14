@@ -30,5 +30,6 @@ async function sync(){if(busy)return;busy=true;const b=$("#cloudSyncNow");if(b)b
  }catch(e){status("Error de sincronización: "+(e.message||String(e)),"error")}finally{busy=false;if(b)b.disabled=false}}
 async function refresh(){try{const {c,user}=await signed();const {count,error}=await c.from("maintenance_records").select("*",{count:"exact",head:true}).eq("user_id",user.id);if(error)throw error;const conflicts=readConflicts();renderConflictControl(conflicts);status("Conectado a Supabase · "+(count??0)+" registros privados en la nube"+(conflicts.length?" · "+conflicts.length+" conflictos pendientes de revisión":""),"connected")}catch(e){const message=e.message||String(e);const state=/Configura primero|No hay sesión activa/i.test(message)?"pending":"error";status(message,state)}}
 $("#cloudSyncNow")?.addEventListener("click",sync);$("#cloudRefresh")?.addEventListener("click",refresh);window.addEventListener("pbb-auth-state-changed",()=>refresh());
+window.addEventListener("pbb-supabase-config-changed",()=>refresh());
 window.addEventListener("pbb-local-data-changed",()=>status("Hay cambios locales pendientes de sincronizar.","dirty"));
 status("Comprobando configuración, sesión y tabla privada…","pending");renderConflictControl();refresh();
