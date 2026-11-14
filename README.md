@@ -66,3 +66,22 @@ La rama de desarrollo incorpora un visor de PDF privado con navegación a págin
 En el visor RCS, selecciona un PDF, introduce la página física (numeración desde 1) y pulsa **OCR de página actual**. El navegador renderiza esa página y Tesseract.js intenta reconocer texto en español e inglés; el resultado se guarda en el índice privado del documento y pasa a ser localizable mediante la búsqueda literal. El proceso es puntual por página, no masivo. La numeración física del PDF puede no coincidir con el folio impreso en el esquema.
 
 La documentación de referencia vigente es T87911031210ES_BARAJAS_T4T4S_Rev_J ESQUEMA.pdf (Rev. J, 28/05/2024, 96 páginas físicas), ya subida por el usuario a la biblioteca privada de la PWA. El documento anterior RCS PLANOS.pdf queda sustituido. Falta validar con sesión real que el visor abra el PDF y que OCR escriba el texto en document_chunks.
+
+
+## OCR RCS V3 · análisis especializado de planos eléctricos
+
+- Renderizado PDF de alta resolución y cuatro zonas solapadas.
+- Cuatro pasadas por zona: contraste y umbral adaptativo, con segmentación Tesseract PSM 11 y PSM 6.
+- Clasificación preliminar de referencias de equipos, bornes, conductores y cables; coordenadas normalizadas para localizar coincidencias.
+- Análisis visual complementario Claude Vision mediante Edge Function privada `claude-plan-vision`. Verifica propiedad del documento, requiere sesión y usa `ANTHROPIC_API_KEY` solo en servidor.
+- El análisis IA distingue lecturas claras/probables/ilegibles y advierte conexiones ambiguas. No sustituye la comprobación del plano original.
+
+### Despliegue adicional requerido para Claude Vision
+
+La función `supabase/functions/claude-plan-vision/index.ts` y su configuración ya están en el repositorio. Para habilitar el análisis visual en el proyecto Supabase, desde un entorno con Supabase CLI autenticado y el proyecto vinculado, ejecutar:
+
+```bash
+supabase functions deploy claude-plan-vision
+```
+
+Comprobar que el secreto `ANTHROPIC_API_KEY` está configurado en Supabase Edge Functions. Si la función aún no se ha desplegado, la PWA mostrará el OCR local y señalará que el análisis visual IA no está disponible; no lo presentará como completado.
