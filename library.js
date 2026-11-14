@@ -131,7 +131,7 @@ async function ocrRcsCurrentPage(){
   const pdf=await pdfjs.getDocument({url:signed.signedUrl}).promise;
   if(pageNumber>pdf.numPages)throw Error("El PDF solo tiene "+pdf.numPages+" páginas.");
   const page=await pdf.getPage(pageNumber),base=page.getViewport({scale:1});
-  const scale=Math.min(3.6,7600/Math.max(base.width,base.height),Math.sqrt(22000000/(base.width*base.height)));
+  const scale=Math.min(3.2,7000/Math.max(base.width,base.height),Math.sqrt(18000000/(base.width*base.height)));
   const viewport=page.getViewport({scale:Math.max(1,scale)});
 
   // 1) Primero extrae texto vectorial nativo del PDF: es mucho más fiable que OCR
@@ -224,16 +224,15 @@ async function ocrRcsCurrentPage(){
     const crop=document.createElement("canvas");crop.width=tileW;crop.height=tileH;
     const cropCtx=crop.getContext("2d",{willReadFrequently:true});cropCtx.fillStyle="#fff";cropCtx.fillRect(0,0,tileW,tileH);
     cropCtx.drawImage(canvas,sx,sy,tileW,tileH,0,0,tileW,tileH);
-    const variants={contrast:makeVariant(crop,"contrast"),adaptive:makeVariant(crop,"adaptive")};
-    crop.width=0;crop.height=0;
     for(let pi=0;pi<passes.length;pi++){
-     const pass=passes[pi],variant=variants[pass.variant];
+     const pass=passes[pi],variant=makeVariant(crop,pass.variant);
      await worker.setParameters({preserve_interword_spaces:"1",user_defined_dpi:"300",tessedit_pageseg_mode:pass.psm});
      status.textContent="OCR RCS V3 · zona "+(ri+1)+"/4 · pasada "+(pi+1)+"/4 ("+pass.label+")…";
      const result=await worker.recognize(variant),data=result?.data||{};
      addRecognized(data,sx,sy,"OCR-"+pass.variant.toUpperCase()+"-PSM"+pass.psm,r.name);
+     variant.width=0;variant.height=0;
     }
-    variants.contrast.width=0;variants.contrast.height=0;variants.adaptive.width=0;variants.adaptive.height=0;
+    crop.width=0;crop.height=0;
    }
    ocrMode="OCR RCS V3: 4 zonas × 4 pasadas (contraste/adaptativo · PSM 11/6)";
    ocrConfidence=ocrWords.length?ocrWords.reduce((n,w)=>n+w.c,0)/ocrWords.length:0;
@@ -242,10 +241,15 @@ async function ocrRcsCurrentPage(){
   }
 
   // Fusiona texto nativo y OCR, eliminando repeticiones por posición.
-  const combined=[...nativeWords,...ocrWords].sort((a,b)=>a.y-b.y||a.x-b.x),words=[];
+  const combined=[...nativeWords,...ocrWords].sort((a,b)=>a.y-b.y||a.x-b.x),words=[],spatial=new Map(),cellSize=24;
   for(const w of combined){
-   const duplicate=words.some(q=>q.t.toLowerCase()===w.t.toLowerCase()&&Math.abs(q.cx-w.cx)<Math.max(18,(w.w+q.w)*canvas.width/2000)&&Math.abs(q.cy-w.cy)<Math.max(18,(w.h+q.h)*canvas.height/2000));
-   if(!duplicate)words.push(w);
+   const token=w.t.toLowerCase(),gx=Math.floor(w.cx/cellSize),gy=Math.floor(w.cy/cellSize);
+   let duplicate=false;
+   for(let dx=-1;dx<=1&&!duplicate;dx++)for(let dy=-1;dy<=1&&!duplicate;dy++){
+    const bucket=spatial.get(token+"|"+(gx+dx)+"|"+(gy+dy))||[];
+    duplicate=bucket.some(q=>Math.abs(q.cx-w.cx)<Math.max(18,(w.w+q.w)*canvas.width/2000)&&Math.abs(q.cy-w.cy)<Math.max(18,(w.h+q.h)*canvas.height/2000));
+   }
+   if(!duplicate){words.push(w);const key=token+"|"+gx+"|"+gy;if(!spatial.has(key))spatial.set(key,[]);spatial.get(key).push(w);}
   }
   const textValue=[nativeText?("[TEXTO VECTORIAL DEL PDF]\n"+nativeText):"",...ocrTexts].filter(Boolean).join("\n\n").trim();
   const usefulWords=words.filter(w=>/[A-Za-z0-9]/.test(w.t)).length;
