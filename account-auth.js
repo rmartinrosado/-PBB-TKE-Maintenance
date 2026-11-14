@@ -69,12 +69,8 @@ import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
   try{const c=getSupabaseClient();const {error}=await c.auth.signOut();if(error)throw error;showSession(null);status("Sesión cerrada.");}
   catch(e){status("No se pudo cerrar sesión: "+(e.message||String(e)))}
  }
- $("#sbSaveConfig")?.addEventListener("click",()=>{try{saveConfig();status("Configuración guardada en este dispositivo. Ahora puedes iniciar sesión.");}catch(e){status("No se guardó: "+e.message)}});
- $("#sbConnect")?.addEventListener("click",()=>login("panel"));
- $("#sbRegister")?.addEventListener("click",()=>register("panel"));
  $("#accountLogin")?.addEventListener("click",()=>login("modal"));
  $("#accountCreate")?.addEventListener("click",()=>register("modal"));
- $("#sbLogout")?.addEventListener("click",logout);
  $("#accountLogout")?.addEventListener("click",logout);
  $("#accountOpen")?.addEventListener("click",async()=>{fillModal();$("#accountDialog")?.classList.remove("hidden");try{const c=getSupabaseClient(),{data,error}=await c.auth.getSession();if(error)throw error;showSession(data.session)}catch(e){status(e.message||String(e))}});
  $("#accountClose")?.addEventListener("click",()=>$("#accountDialog")?.classList.add("hidden"));
