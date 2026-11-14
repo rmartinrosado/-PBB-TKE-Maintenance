@@ -21,6 +21,7 @@ async function refresh(){
  catch(e){render(null);say(e.message)}
 }
 function close(){ $("#accountDialog").classList.add("hidden"); }
+window.addEventListener("pbb-auth-state-changed",()=>refresh());
 $("#accountOpen").addEventListener("click",()=>{$("#accountDialog").classList.remove("hidden");refresh()});
 $("#accountClose").addEventListener("click",close);
 $("#accountDialog").addEventListener("click",e=>{if(e.target.id==="accountDialog")close()});
