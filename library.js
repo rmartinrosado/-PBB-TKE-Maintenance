@@ -247,7 +247,7 @@ async function ocrRcsCurrentPage(){
    throw Error("No se ha reconocido texto suficiente; no se ha guardado nada. Palabras útiles: "+usefulWords+". Comprueba que el PDF tenga resolución adecuada.");
   }
   const boxRows=words.slice(0,3000).map(({t,c,x,y,w,h,source})=>({t,c,x,y,w,h,source}));
-  const preview="RECONOCIMIENTO DE PLANO · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: ignorado para evitar coordenadas y texto CAD engañosos ("+nativeAlphaTokens.length+" tokens alfabéticos detectados)\nPalabras OCR detectadas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
+  const preview="RECONOCIMIENTO DE PLANO · BUILD 2.6.0 · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: ignorado para evitar coordenadas y texto CAD engañosos ("+nativeAlphaTokens.length+" tokens alfabéticos detectados)\nPalabras OCR detectadas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
   status.textContent="Análisis del plano terminado. Revisa el resultado antes de guardarlo.";
   if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="Análisis cancelado. No se ha guardado ningún dato.";return;}
   const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);
