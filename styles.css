@@ -252,3 +252,5 @@ body.has-field-nav{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
 .account-backdrop.startup-gate .account-sheet{width:min(100%,480px)}
 .account-backdrop.startup-gate #accountClose{display:none!important}
 .account-backdrop.startup-gate #accountGoSync{min-height:48px}
+
+body.auth-locked{overflow:hidden}.header-actions #accountOpen{display:none!important}
