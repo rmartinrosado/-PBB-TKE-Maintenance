@@ -260,14 +260,34 @@ async function ocrRcsCurrentPage(){
   if(usefulWords<5||textValue.replace(/\s/g,"").length<18){
    throw Error("No se ha reconocido texto suficiente; no se ha guardado nada. Palabras útiles: "+usefulWords+". Comprueba que el PDF tenga resolución adecuada.");
   }
+  const referencePositions=references.map(reference=>({reference,matches:words.filter(w=>w.t.toUpperCase().replace(/[^A-Z0-9]/g,"")===reference.replace(/[^A-Z0-9]/g,"")).slice(0,8).map(({t,c,x,y,w,h,source})=>({t,c,x,y,w,h,source}))}));
+  let visionAnalysis="",visionModel="",visionWarning="";
+  try{
+   status.textContent="Preparando cuatro zonas para análisis visual IA…";
+   const visualImages=[];
+   for(const r of [{name:"superior izquierda",x:0,y:0},{name:"superior derecha",x:.44,y:0},{name:"inferior izquierda",x:0,y:.44},{name:"inferior derecha",x:.44,y:.44}]){
+    const sx=Math.round(r.x*canvas.width),sy=Math.round(r.y*canvas.height),tw=Math.ceil(canvas.width*.56),th=Math.ceil(canvas.height*.56),factor=Math.min(1,1500/Math.max(tw,th));
+    const shot=document.createElement("canvas");shot.width=Math.max(1,Math.round(tw*factor));shot.height=Math.max(1,Math.round(th*factor));
+    const shotCtx=shot.getContext("2d");shotCtx.fillStyle="#fff";shotCtx.fillRect(0,0,shot.width,shot.height);shotCtx.drawImage(canvas,sx,sy,tw,th,0,0,shot.width,shot.height);
+    const dataUrl=shot.toDataURL("image/jpeg",.78),comma=dataUrl.indexOf(",");
+    visualImages.push({region:r.name,mediaType:"image/jpeg",data:dataUrl.slice(comma+1)});
+    shot.width=0;shot.height=0;
+   }
+   status.textContent="Claude Vision está contrastando etiquetas, símbolos y conexiones…";
+   const {data:visionData,error:visionError}=await sb.functions.invoke("claude-plan-vision",{body:{documentId:id,pageNumber,images:visualImages,ocrText:textValue.slice(0,9000),references}});
+   if(visionError){let detail=visionError.message||"No se pudo llamar al análisis visual.";const response=visionError.context;if(response&&typeof response.clone==="function"){try{const raw=await response.clone().text();let payload={};try{payload=JSON.parse(raw)}catch{}detail=payload.error||payload.message||raw.slice(0,900)||detail;if(response.status===404)detail="La Edge Function claude-plan-vision está en GitHub, pero aún no está desplegada en Supabase.";}catch{}}throw Error(detail);}
+   if(visionData?.error)throw Error(visionData.error);
+   visionAnalysis=String(visionData?.answer||"");visionModel=String(visionData?.model||"Claude Vision");
+   if(!visionAnalysis)throw Error("Claude Vision no devolvió un análisis.");
+  }catch(visionError){visionWarning=visionError?.message||String(visionError);visionAnalysis="ANÁLISIS VISUAL IA NO DISPONIBLE: "+visionWarning;}
   const boxRows=words.slice(0,3000).map(({t,c,x,y,w,h,source})=>({t,c,x,y,w,h,source}));
-  const preview="RECONOCIMIENTO DE PLANO · BUILD 3.0.0 · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: ignorado para evitar coordenadas y texto CAD engañosos ("+nativeAlphaTokens.length+" tokens alfabéticos detectados)\nPalabras OCR detectadas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\nReferencias/códigos candidatos: "+(references.join(", ")||"ninguno")+"\n\n"+textValue.slice(0,3000);
+  const preview="RECONOCIMIENTO DE PLANO · BUILD 3.0.0 · página "+pageNumber+"\nMétodo: "+ocrMode+"\nTexto vectorial PDF: ignorado ("+nativeAlphaTokens.length+" tokens alfabéticos detectados)\nPalabras OCR detectadas: "+usefulWords+" · confianza media OCR: "+Math.round(ocrConfidence)+"% (no mide exactitud eléctrica)\nReferencias clasificadas: "+(references.join(", ")||"ninguna")+"\n\nANÁLISIS VISUAL IA · "+(visionWarning?"NO DISPONIBLE: "+visionWarning:visionModel+" completado")+"\n"+visionAnalysis.slice(0,2200)+"\n\nOCR LOCAL:\n"+textValue.slice(0,1800)
   status.textContent="Análisis del plano terminado. Revisa el resultado antes de guardarlo.";
   if(!window.confirm(preview+"\n\n¿Guardar este reconocimiento en el índice privado?")){status.textContent="Análisis cancelado. No se ha guardado ningún dato.";return;}
   const {data:lastRows,error:lastError}=await sb.from("document_chunks").select("chunk_index").eq("document_id",id).order("chunk_index",{ascending:false}).limit(1);
   if(lastError)throw lastError;
   const nextIndex=(lastRows?.[0]?.chunk_index??-1)+1;
-  const content="[RECONOCIMIENTO PLANO RCS V3 página "+pageNumber+" · "+ocrMode+" · confianza OCR "+Math.round(ocrConfidence)+"%]\n"+textValue+"\n\n[REFERENCIAS_CLASIFICADAS]\n"+JSON.stringify(referenceClasses)+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows);
+  const content="[RECONOCIMIENTO PLANO RCS V3 página "+pageNumber+" · "+ocrMode+" · confianza OCR "+Math.round(ocrConfidence)+"%]\n"+textValue+"\n\n[ANALISIS_VISUAL_IA · "+(visionWarning?"NO DISPONIBLE":visionModel)+"]\n"+visionAnalysis+"\n\n[REFERENCIAS_CLASIFICADAS]\n"+JSON.stringify(referenceClasses)+"\n\n[POSICIONES_REFERENCIAS]\n"+JSON.stringify(referencePositions)+"\n\n[COORDENADAS_OCR_NORMALIZADAS_0_1000]\n"+JSON.stringify(boxRows)
   const {error:insertError}=await sb.from("document_chunks").insert({document_id:id,user_id:session.user.id,chunk_index:nextIndex,page_label:String(pageNumber),content});
   if(insertError)throw insertError;
   const legacyPrefixes=["[OCR página%","[OCR POR ZONAS página%"];
