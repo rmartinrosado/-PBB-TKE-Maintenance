@@ -9,11 +9,12 @@ const say=s=>{const n=$("#libStatus");if(n)n.textContent=s};
 function persistSupabaseFields(){
  const url=$("#sbUrl")?.value.trim()||"";
  const key=$("#sbKey")?.value.trim()||"";
- try{
-  if(url){const u=new URL(url);if(u.protocol==="https:"&&u.hostname.endsWith(".supabase.co"))localStorage.setItem("pbb-sb-url",url.replace(/\/$/,""));}
-  if(key){localStorage.setItem("pbb-sb-anon",key);}
-  if(key)say("Clave pública guardada automáticamente en este dispositivo. Ya puedes iniciar sesión.");
- }catch(e){say("No se pudo guardar la configuración local: "+(e.message||String(e)));}
+ if(!url||!key)throw Error("Faltan datos: introduce la URL y la clave pública y pulsa Guardar configuración.");
+ let parsed;try{parsed=new URL(url)}catch{throw Error("La URL de Supabase no es válida.");}
+ if(parsed.protocol!=="https:"||!parsed.hostname.endsWith(".supabase.co"))throw Error("La URL debe ser HTTPS y pertenecer a un proyecto Supabase.");
+ localStorage.setItem("pbb-sb-url",url.replace(/\/$/,""));
+ localStorage.setItem("pbb-sb-anon",key);
+ window.dispatchEvent(new CustomEvent("pbb-supabase-config-changed"));
 }
 $("#sbUrl")?.addEventListener("input",persistSupabaseFields);
 $("#sbUrl")?.addEventListener("change",persistSupabaseFields);
@@ -34,7 +35,7 @@ function config(){
 }
 // Un único cliente Supabase para cuenta, biblioteca y sincronización.
 window.PBB_GET_SUPABASE_CLIENT=()=>getSupabaseClient();
-$("#sbSaveConfig").onclick=()=>{try{persistSupabaseFields();config();say("Configuración de Supabase guardada en este dispositivo. Inicia sesión para usar la biblioteca.")}catch(e){say(e.message)}};
+$("#sbSaveConfig").onclick=()=>{try{persistSupabaseFields();config();say("Configuración guardada correctamente en este dispositivo. Ahora inicia sesión con tu correo y contraseña.");window.dispatchEvent(new CustomEvent("pbb-supabase-config-changed"))}catch(e){say("No se guardó la configuración: "+e.message)}};
 async function ensure(){
  const c=config(),{data,error}=await c.auth.getSession();if(error)throw error;session=data.session;
  if(!session)throw Error("Configuración encontrada, pero no hay sesión activa. Inicia sesión en Panel operativo → Configuración de sincronización privada.");
@@ -377,7 +378,7 @@ $("#caseForm")?.addEventListener("submit",()=>{
  if(q&&!q.value.trim())q.value="Analiza desde cero la alarma: "+String(f.get("fault")||"").trim()+". Para PBB-"+$("#casePbb").value+", identifica en la documentación seleccionada el origen y destino del elemento implicado, las referencias y bornes acreditados, y propone comprobaciones discriminantes seguras. Separa hechos documentados, hipótesis y datos pendientes; cita documento y página. No inventes conexiones ni anules seguridades.";
  refreshDocChecks();
 });
-$("#sbConnect").onclick=async()=>{const button=$("#sbConnect");button.disabled=true;try{const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");say("Conectando con Supabase Auth…");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated:true,email:session?.user?.email||null}}));say("Sesión iniciada correctamente. Cargando biblioteca privada…");await list().catch(e=>say("Sesión iniciada, pero la biblioteca devolvió un error: "+e.message))}catch(e){say("Error de acceso: "+(e.message||String(e)))}finally{button.disabled=false}};
+$("#sbConnect").onclick=async()=>{const button=$("#sbConnect");button.disabled=true;try{persistSupabaseFields();const c=config(),email=$("#sbEmail").value.trim(),password=$("#sbPassword").value;if(!email||!password)throw Error("Introduce correo y contraseña.");say("Conectando con Supabase Auth…");const {data,error}=await c.auth.signInWithPassword({email,password});if(error)throw error;session=data.session;window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated:true,email:session?.user?.email||null}}));say("Sesión iniciada correctamente. Cargando biblioteca privada…");await list().catch(e=>say("Sesión iniciada, pero la biblioteca devolvió un error: "+e.message))}catch(e){say("Error de acceso: "+(e.message||String(e)))}finally{button.disabled=false}};
 $("#sbRegister").onclick=async()=>{try{const c=config(),{error}=await c.auth.signUp({email:$("#sbEmail").value.trim(),password:$("#sbPassword").value});if(error)throw error;say("Registro enviado. Confirma el correo si Supabase lo solicita; después inicia sesión.")}catch(e){say(e.message)}};
 $("#sbLogout").onclick=async()=>{try{if(sb)await sb.auth.signOut();session=null;docs=[];$("#docList").innerHTML="";say("Sesión cerrada.")}catch(e){say(e.message)}};
 $("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
