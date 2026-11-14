@@ -1,9 +1,10 @@
+import { getSupabaseClient } from "./supabase-client.js?v=1.0.0";
 const $=s=>document.querySelector(s),KEY="pbb-tke-v6",CONFLICTS="pbb-sync-conflicts-v1";
 let busy=false;
 const canonical=value=>{if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).filter(k=>k!=="updatedAt").sort().map(k=>[k,canonical(value[k])]));return value};
 const same=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
 function status(message,state="pending"){const n=$("#cloudSyncStatus");if(!n)return;n.textContent=message;n.classList.remove("is-pending","is-connected","is-error","is-dirty");n.classList.add("is-"+state);n.dataset.state=state}
-function getClient(){const shared=window.PBB_GET_SUPABASE_CLIENT;if(typeof shared!=="function")throw Error("El módulo de biblioteca aún no ha inicializado la conexión compartida. Recarga la aplicación.");return shared()}
+function getClient(){return getSupabaseClient()}
 async function signed(){const c=getClient(),{data,error}=await c.auth.getSession();if(error)throw error;if(!data.session)throw Error("No hay sesión activa. Inicia sesión en Mi cuenta TKE.");return {c,user:data.session.user}}
 function readLocal(){const d=JSON.parse(localStorage.getItem(KEY)||'{"orders":[],"history":[]}');for(const g of ["orders","history"]){if(!Array.isArray(d[g]))d[g]=[];d[g].forEach(r=>{if(!r.id)r.id=crypto.randomUUID();if(!r.updatedAt)r.updatedAt=r.savedAt||r.createdAt||new Date().toISOString()})}return d}
 function readConflicts(){try{return JSON.parse(localStorage.getItem(CONFLICTS)||"[]")}catch{return []}}
