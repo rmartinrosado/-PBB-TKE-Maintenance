@@ -1,11 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const $=s=>document.querySelector(s);
-let client=null,knownSession=null;
+let client=null,clientConfig="",knownSession=null;
 const say=s=>{const n=$("#accountStatus");if(n)n.textContent=s};
 function getClient(){
- const url=localStorage.getItem("pbb-sb-url"),key=localStorage.getItem("pbb-sb-anon");
- if(!url||!key)throw Error("Primero configura URL y clave pública de Supabase en Panel operativo → Configuración de sincronización privada.");
- if(!client)client=createClient(url,key);
+ const url=($("#sbUrl")?.value||"").trim()||localStorage.getItem("pbb-sb-url")||"";
+ const key=($("#sbKey")?.value||"").trim()||localStorage.getItem("pbb-sb-anon")||"";
+ if(!url||!key)throw Error("Falta URL o clave pública. Configúralas en Panel operativo → Configuración de sincronización privada.");
+ let parsed;try{parsed=new URL(url)}catch{throw Error("La URL de Supabase no es válida.")};
+ if(parsed.protocol!=="https:"||!parsed.hostname.endsWith(".supabase.co"))throw Error("La URL debe ser HTTPS y pertenecer al proyecto .supabase.co.");
+ const cleanUrl=url.replace(/\/$/,""),fingerprint=cleanUrl+"|"+key;
+ localStorage.setItem("pbb-sb-url",cleanUrl);
+ localStorage.setItem("pbb-sb-anon",key);
+ if(!client||clientConfig!==fingerprint){client=createClient(cleanUrl,key);clientConfig=fingerprint;}
  return client;
 }
 function render(session){
