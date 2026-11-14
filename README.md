@@ -1,8 +1,8 @@
-# PBB TKE Maintenance · V2.0 (rama de desarrollo)
+# PBB TKE Maintenance · V2.3.0 (producción)
 
 PWA de apoyo al mantenimiento electromecánico de Passenger Boarding Bridges TKE en Madrid-Barajas T4/T4S.
 
-## Alcance implementado en esta rama
+## Alcance implementado en producción
 
 - Diagnóstico por caso independiente, con ocho etapas y separación entre observación, comprobación y conclusión.
 - Guardado local de órdenes e informes en el almacenamiento existente, conservando compatibilidad con los datos anteriores.
@@ -96,3 +96,15 @@ Comprobar que el secreto `ANTHROPIC_API_KEY` está configurado en Supabase Edge 
 - El resultado se guarda como reconocimiento V4 con bloques diferenciados de referencias clasificadas, validación cruzada, posiciones y coordenadas normalizadas.
 - La confirmación previa presenta un resumen legible sin volcar literalmente la sintaxis Markdown de Claude.
 - Una coincidencia PDF/OCR refuerza la lectura de una etiqueta, pero **no demuestra una conexión eléctrica**. Las conexiones deben seguirse en el esquema y verificarse en campo con el procedimiento autorizado.
+
+
+## Integración diagnóstico → orden de trabajo · V2.3.0
+
+- Cada caso nuevo recibe un identificador estable.
+- El informe del diagnóstico debe guardarse antes de generar una orden vinculada.
+- La acción «Crear orden de trabajo desde este diagnóstico» prepara la OT con PBB, número de orden, alarma y comprobaciones iniciales.
+- La OT conserva el identificador del diagnóstico, las fuentes documentales mostradas por el análisis Claude y el texto del análisis recibido.
+- La ficha de OT muestra la trazabilidad documental y permite consultar el análisis técnico asociado.
+- Estos campos forman parte del registro local y del payload que sincroniza cloud-sync.js con maintenance_records.
+
+**Validación pendiente en dispositivo real:** probar el flujo completo en Safari/iPhone, confirmar persistencia tras recarga, sincronización en Supabase y recuperación en otro dispositivo. La sintaxis JavaScript de app.js se ha comprobado; esto no sustituye las pruebas de interfaz y de backend. Las fotografías de campo continúan en IndexedDB local y todavía no se sincronizan con Supabase.
