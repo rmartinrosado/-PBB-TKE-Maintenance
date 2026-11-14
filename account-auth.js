@@ -31,7 +31,7 @@ import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
   $("#accountClose")?.classList.toggle("hidden",startupGate&&!authenticated);
   if($("#accountEmail"))$("#accountEmail").textContent=session?.user?.email||"";
   $("#accountDot")?.classList.toggle("is-active",authenticated);
-  window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated,email:session?.user?.email||null}}));
+  window.dispatchEvent(new CustomEvent("pbb-auth-state-changed",{detail:{authenticated, email:session?.user?.email||null, session}}));
  }
  function closeGate(){
   if(!authenticated){status("Debes iniciar sesión para acceder a la aplicación.");return;}
