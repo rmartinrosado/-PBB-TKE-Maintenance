@@ -1,5 +1,5 @@
 import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
-(()=>{
+(async()=>{
  "use strict";
  const $=s=>document.querySelector(s);
  const status=(message)=>{const n=$("#accountStatus");if(n)n.textContent=message;const p=$("#libStatus");if(p)p.textContent=message;};
