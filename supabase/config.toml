@@ -1,2 +1,5 @@
 [functions.claude-diagnose]
 verify_jwt = true
+
+[functions.claude-plan-vision]
+verify_jwt = true
