@@ -102,4 +102,8 @@ with check (
 comment on column public.documents.pbb_scope is
 'COMMON: biblioteca común estándar. A380_SPECIAL: exclusiva PBB-504/507/508. También admite número de PBB para documentación específica. GENERAL se interpreta como biblioteca común por compatibilidad.';
 
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.documents, public.document_chunks to authenticated;
+grant usage, select on sequence public.document_chunks_id_seq to authenticated;
+
 notify pgrst, 'reload schema';
