@@ -446,3 +446,7 @@ html[data-theme="light"] .rcs-pdf-toolbar>b{color:#18334d}
 html[data-theme="light"] .rcs-pdf-controls #rcsPdfZoomValue,html[data-theme="light"] .rcs-page-control{color:#36536d!important}
 html[data-theme="light"] .rcs-pdf-canvas-wrap{background:#dce5ed}
 @media(max-width:600px){.rcs-pdf-canvas-wrap{height:68vh;min-height:360px;padding:8px}.rcs-pdf-controls{gap:5px}.rcs-pdf-controls button{font-size:11px;padding:7px 9px}.rcs-pdf-toolbar{padding:9px}}
+
+/* 2.8.1 · Correct PDF canvas centering and horizontal scroll origin */
+.rcs-pdf-canvas-wrap{display:block!important;overflow:auto!important;scrollbar-gutter:stable;box-sizing:border-box}
+.rcs-pdf-canvas-wrap canvas{max-width:none!important;margin-top:0;margin-bottom:0}
