@@ -171,17 +171,24 @@ async function renderRcsPdfPage(){
  if(!rcsPdfDoc)return;
  const page=await rcsPdfDoc.getPage(rcsPdfPage),canvas=$("#rcsPdfCanvas"),wrap=$("#rcsPdfCanvasWrap"),ctx=canvas.getContext("2d",{alpha:false});
  if(rcsPdfRenderTask){try{rcsPdfRenderTask.cancel()}catch{}}
- const base=page.getViewport({scale:1}),fit=Math.max(.35,Math.min(2.5,(wrap.clientWidth-24)/base.width));
+ const base=page.getViewport({scale:1}),cs=getComputedStyle(wrap);
+ const padX=(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);
+ const available=Math.max(160,wrap.clientWidth-padX-2);
+ const fit=Math.max(.2,Math.min(2.5,available/base.width));
  const scale=rcsPdfFitMode==="width"?fit*rcsPdfScale:rcsPdfScale;
  const viewport=page.getViewport({scale}),dpr=Math.min(2,window.devicePixelRatio||1);
- canvas.width=Math.round(viewport.width*dpr);canvas.height=Math.round(viewport.height*dpr);
- canvas.style.width=Math.round(viewport.width)+"px";canvas.style.height=Math.round(viewport.height)+"px";
+ const cssWidth=Math.ceil(viewport.width),cssHeight=Math.ceil(viewport.height);
+ canvas.width=Math.round(cssWidth*dpr);canvas.height=Math.round(cssHeight*dpr);
+ canvas.style.width=cssWidth+"px";canvas.style.height=cssHeight+"px";
+ canvas.style.marginLeft=Math.max(0,Math.floor((available-cssWidth)/2))+"px";
+ canvas.style.marginRight="0";
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle="#fff";ctx.fillRect(0,0,viewport.width,viewport.height);
  rcsPdfRenderTask=page.render({canvasContext:ctx,viewport});
  try{await rcsPdfRenderTask.promise}catch(e){if(e?.name!=="RenderingCancelledException")throw e}
  $("#rcsPdfPageNumber").value=String(rcsPdfPage);$("#rcsViewerPage").value=String(rcsPdfPage);$("#rcsPdfPageTotal").textContent="/ "+rcsPdfDoc.numPages;
  $("#rcsPdfPrev").disabled=rcsPdfPage<=1;$("#rcsPdfNext").disabled=rcsPdfPage>=rcsPdfDoc.numPages;
  $("#rcsPdfZoomValue").textContent=Math.round(scale*100)+"%";
+ wrap.scrollLeft=0;
 }
 async function openRcsViewer(page){
  await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);if(!d)throw Error("Selecciona un PDF de la biblioteca aplicable a esta posición.");
