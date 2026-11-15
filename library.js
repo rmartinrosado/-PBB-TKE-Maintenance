@@ -179,7 +179,7 @@ async function renderRcsPdfPage(){
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle="#fff";ctx.fillRect(0,0,viewport.width,viewport.height);
  rcsPdfRenderTask=page.render({canvasContext:ctx,viewport});
  try{await rcsPdfRenderTask.promise}catch(e){if(e?.name!=="RenderingCancelledException")throw e}
- $("#rcsPdfPageNumber").value=String(rcsPdfPage);$("#rcsPdfPageTotal").textContent="/ "+rcsPdfDoc.numPages;
+ $("#rcsPdfPageNumber").value=String(rcsPdfPage);$("#rcsViewerPage").value=String(rcsPdfPage);$("#rcsPdfPageTotal").textContent="/ "+rcsPdfDoc.numPages;
  $("#rcsPdfPrev").disabled=rcsPdfPage<=1;$("#rcsPdfNext").disabled=rcsPdfPage>=rcsPdfDoc.numPages;
  $("#rcsPdfZoomValue").textContent=Math.round(scale*100)+"%";
 }
