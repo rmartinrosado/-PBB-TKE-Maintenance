@@ -404,17 +404,11 @@ function installOrderPicker(){
   if(!orders.length)select.innerHTML='<option value="">No hay órdenes locales disponibles</option>';
  }
  select.addEventListener("change",()=>{
-  const order=readOrders().find(o=>String(o.id)===select.value);
-  if(!order)return;
-  $("#casePbb").value=String(order.pbb||"").replace(/^PBB[- ]?/i,"");
-  $("#caseOrder").value=order.number||"";
-  $("#caseAlarm").value=order.fault||"";
-  $("#caseObs").value=[order.checks,order.workPerformed,order.materials?("Materiales: "+order.materials):""].filter(Boolean).join("\n");
-  const q=$("#claudeQuestion");
-  q.value="Analiza la OT "+(order.number||"—")+" de PBB-"+order.pbb+". Alarma: "+(order.fault||"No indicada")+". Observaciones y comprobaciones: "+($("#caseObs").value||"No indicadas")+". Contrasta únicamente los documentos seleccionados y aplicables. Cita documento, revisión, hoja/página y referencia exacta. Separa hechos documentados, hipótesis y pruebas pendientes; no inventes bornes ni conexiones.";
+  const id=select.value;
+  if(!id)return;
+  if(typeof window.PBB_fillLibraryFromOrder==="function")window.PBB_fillLibraryFromOrder(id);
+  else say("No se ha podido cargar la OT: el módulo de órdenes todavía no está disponible.");
   refreshDocChecks();
-  say("OT "+(order.number||"—")+" · PBB-"+order.pbb+" cargada. Inicia sesión si es necesario, selecciona los documentos aplicables y ejecuta Claude.");
-  $("#casePbb").scrollIntoView({behavior:"smooth",block:"center"});
  });
  window.addEventListener("pbb-local-data-changed",refresh);
  window.addEventListener("pbb-cloud-data-merged",refresh);
