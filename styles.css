@@ -428,25 +428,3 @@ html[data-theme="dark"] .panel .sub{color:#b2c2d1!important}
 html[data-theme="dark"] .warning p{color:#e0cfad}
 html[data-theme="dark"] .docrow{border-bottom-color:#344b60}
 html[data-theme="dark"] .docrow input[type="checkbox"]{accent-color:#25bce8}
-
-
-/* 2.8.0 · Visor PDF técnico integrado */
-.rcs-pdf-frame-wrap{height:auto!important;min-height:0!important;overflow:hidden;border:1px solid #334d65!important;background:#081522!important}
-.rcs-pdf-toolbar{position:sticky;top:0;z-index:2;display:grid;gap:10px;padding:12px;background:#0b1c2c;border-bottom:1px solid #31495f;color:#e7f0f8}
-.rcs-pdf-toolbar>b{font-size:12px;overflow-wrap:anywhere;color:#dceaf5}
-.rcs-pdf-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.rcs-pdf-controls button{min-height:36px}
-.rcs-pdf-controls #rcsPdfZoomValue{min-width:42px;text-align:center;font-size:11px;color:#b9d0e1}
-.rcs-page-control{display:flex!important;align-items:center;gap:4px!important;margin:0!important;color:#c4d7e6!important;font-size:11px!important}
-.rcs-page-control input{width:54px!important;min-height:36px!important;padding:5px!important;text-align:center}
-.rcs-pdf-canvas-wrap{height:min(72vh,900px);min-height:420px;overflow:auto;overscroll-behavior:contain;padding:12px;display:flex;align-items:flex-start;justify-content:center;background:#07111c;touch-action:pan-x pan-y}
-.rcs-pdf-canvas-wrap canvas{display:block;max-width:none;background:#fff;box-shadow:0 8px 30px #0008}
-html[data-theme="light"] .rcs-pdf-toolbar{background:#eaf1f7;color:#18334d;border-bottom-color:#c7d6e4}
-html[data-theme="light"] .rcs-pdf-toolbar>b{color:#18334d}
-html[data-theme="light"] .rcs-pdf-controls #rcsPdfZoomValue,html[data-theme="light"] .rcs-page-control{color:#36536d!important}
-html[data-theme="light"] .rcs-pdf-canvas-wrap{background:#dce5ed}
-@media(max-width:600px){.rcs-pdf-canvas-wrap{height:68vh;min-height:360px;padding:8px}.rcs-pdf-controls{gap:5px}.rcs-pdf-controls button{font-size:11px;padding:7px 9px}.rcs-pdf-toolbar{padding:9px}}
-
-/* 2.8.1 · Correct PDF canvas centering and horizontal scroll origin */
-.rcs-pdf-canvas-wrap{display:block!important;overflow:auto!important;scrollbar-gutter:stable;box-sizing:border-box}
-.rcs-pdf-canvas-wrap canvas{max-width:none!important;margin-top:0;margin-bottom:0}
