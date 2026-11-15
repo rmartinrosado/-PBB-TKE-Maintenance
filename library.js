@@ -218,18 +218,44 @@ document.addEventListener("keydown",event=>{if(event.key==="Escape"&&$("#rcsPdfF
  stage.addEventListener("touchcancel",()=>{startDistance=0},{passive:true});
 })();
 async function openRcsViewer(page){
- await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);if(!d)throw Error("Selecciona un PDF de la biblioteca aplicable a esta posición.");
- const n=Math.max(1,parseInt(page||$("#rcsViewerPage").value||"1",10)||1);
- const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,300);if(error)throw error;
- const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
- pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
- $("#rcsPdfStage").innerHTML='<canvas id="rcsPdfCanvas" aria-label="Página del plano PDF"></canvas>';
- rcsPdfDocument=await pdfjs.getDocument({url:data.signedUrl}).promise;
- if(n>rcsPdfDocument.numPages)throw Error("El PDF solo tiene "+rcsPdfDocument.numPages+" páginas.");
- rcsPdfPageNumber=n;rcsViewerZoom=1;$("#rcsViewerPage").value=String(n);
- $("#rcsPdfFrameWrap").classList.remove("hidden");toggleRcsViewerExpanded(false);
- await new Promise(resolve=>requestAnimationFrame(resolve));await renderRcsPdfPage();
- $("#rcsViewerStatus").textContent="PDF privado abierto · "+d.title+" · página "+n+" de "+rcsPdfDocument.numPages+". Zoom y pellizco táctil activos.";
+ const status=$("#rcsViewerStatus"),wrap=$("#rcsPdfFrameWrap"),stage=$("#rcsPdfStage");
+ try{
+  if(status)status.textContent="Conectando con la biblioteca privada y preparando el PDF…";
+  await ensure();
+  const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);
+  if(!d)throw Error("Selecciona un PDF de la biblioteca aplicable a esta posición.");
+  if(!d.storage_path)throw Error("El registro del documento no contiene la ruta del archivo en Supabase Storage.");
+  const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,600);
+  if(error)throw new Error("Supabase no ha podido generar el enlace privado: "+error.message);
+  if(!data?.signedUrl)throw Error("Supabase no ha devuelto un enlace de descarga válido.");
+  if(status)status.textContent="Descargando el motor PDF y abriendo el documento…";
+  let pdfjs;
+  try{
+   pdfjs=await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
+  }catch(firstError){
+   try{pdfjs=await import("https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.min.mjs");}
+   catch(secondError){throw new Error("No se pudo cargar el motor PDF desde las dos fuentes. Comprueba la conexión a Internet y vuelve a intentarlo. "+(secondError.message||firstError.message));}
+  }
+  pdfjs.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+  const loadingTask=pdfjs.getDocument({url:data.signedUrl,disableRange:true,disableStream:true,disableAutoFetch:true});
+  const loadedDocument=await loadingTask.promise;
+  const n=Math.max(1,parseInt(page||$("#rcsViewerPage")?.value||"1",10)||1);
+  if(n>loadedDocument.numPages)throw Error("El PDF solo tiene "+loadedDocument.numPages+" páginas.");
+  if(rcsPdfRenderTask){try{rcsPdfRenderTask.cancel()}catch{}rcsPdfRenderTask=null}
+  rcsPdfDocument=loadedDocument;rcsPdfPageNumber=n;rcsViewerZoom=1;
+  if($("#rcsViewerPage"))$("#rcsViewerPage").value=String(n);
+  if(stage&&!$("#rcsPdfCanvas"))stage.innerHTML='<canvas id="rcsPdfCanvas" aria-label="Página del plano PDF"></canvas>';
+  if(wrap)wrap.classList.remove("hidden");
+  toggleRcsViewerExpanded(false);
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await renderRcsPdfPage();
+  if(status)status.textContent="PDF privado abierto · "+d.title+" · página "+n+" de "+rcsPdfDocument.numPages+". Zoom y pellizco táctil activos.";
+ }catch(e){
+  const message=e?.message||String(e);
+  if(status)status.textContent="No se pudo cargar el PDF: "+message;
+  console.error("RCS PDF viewer:",e);
+  throw e;
+ }
 }
 async function ocrRcsCurrentPage(){
  const session=await ensure(),id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);
