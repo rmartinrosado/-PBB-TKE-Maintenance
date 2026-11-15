@@ -428,3 +428,18 @@ html[data-theme="dark"] .panel .sub{color:#b2c2d1!important}
 html[data-theme="dark"] .warning p{color:#e0cfad}
 html[data-theme="dark"] .docrow{border-bottom-color:#344b60}
 html[data-theme="dark"] .docrow input[type="checkbox"]{accent-color:#25bce8}
+
+
+/* 2.7.2 · Controles fiables del visor PDF privado */
+.rcs-pdf-frame-wrap{display:flex;flex-direction:column;position:relative}
+.rcs-pdf-toolbar{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;padding:8px 10px;background:#102b43;border-bottom:1px solid #36536c}
+.rcs-pdf-toolbar strong{min-width:48px;text-align:center;color:#fff;font-size:12px;font-variant-numeric:tabular-nums}
+.rcs-pdf-toolbar button{min-height:34px;padding:7px 11px}
+.rcs-pdf-stage{position:relative;flex:1 1 auto;min-width:0;min-height:0;width:100%;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#dce4ec}
+.rcs-pdf-stage iframe{display:block;width:100%;height:100%;min-width:100%;min-height:100%;border:0;background:#fff}
+.rcs-pdf-frame-wrap.is-expanded{position:fixed!important;inset:0!important;z-index:1200!important;width:100vw!important;height:100dvh!important;max-height:none!important;min-height:0!important;margin:0!important;border:0!important;border-radius:0!important;overflow:hidden!important;background:#071321!important}
+.rcs-pdf-frame-wrap.is-expanded .rcs-pdf-toolbar{padding:calc(8px + env(safe-area-inset-top)) 10px 8px}
+.rcs-pdf-frame-wrap.is-expanded .rcs-pdf-stage{height:auto;min-height:0}
+body.rcs-viewer-expanded{overflow:hidden!important}
+html[data-theme="light"] .rcs-pdf-stage{background:#e8eef4}
+@media(max-width:430px){.rcs-pdf-toolbar{justify-content:center;gap:5px;padding:7px 6px}.rcs-pdf-toolbar button{padding:7px 9px;font-size:10px}.rcs-pdf-toolbar strong{min-width:42px;font-size:11px}}
