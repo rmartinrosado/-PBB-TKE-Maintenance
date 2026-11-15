@@ -416,17 +416,28 @@ function installOrderPicker(){
  refresh();
 }
 
+function claudeProgress(percent,label,detail="",busy=false){
+ const panel=$("#claudeProgress"),bar=$("#claudeProgressBar"),value=$("#claudeProgressValue"),phase=$("#claudeProgressPhase"),note=$("#claudeProgressNote");
+ if(!panel||!bar)return;
+ panel.hidden=false;panel.classList.toggle("is-busy",!!busy);
+ bar.style.width=Math.max(0,Math.min(100,percent))+"%";
+ bar.setAttribute("aria-valuenow",String(Math.round(percent)));
+ if(value)value.textContent=busy?"En curso":Math.round(percent)+"%";
+ if(phase)phase.textContent=label;
+ if(note)note.textContent=detail;
+}
 async function analyze(){
  const button=$("#claudeRun"),answer=$("#claudeAnswer"),sources=$("#claudeSources");
  try{
+  claudeProgress(3,"Preparando análisis","Comprobando sesión, posición PBB y documentos seleccionados…");
   await ensure();const pbb=currentPbb();if(!/^\d{3}$/.test(pbb))throw Error("Introduce el número de posición PBB (tres cifras).");const special=A380_PBBS.has(pbb);const applicable=docs.filter(d=>docAllowed(d,pbb));const ids=[...document.querySelectorAll(".docpick:checked")].map(x=>x.value).filter(id=>applicable.some(d=>d.id===id));
   if(!ids.length)throw Error(special?"No hay documentos seleccionados de la biblioteca especial A380 para PBB-"+pbb+". La biblioteca común queda excluida.":"No hay documentos seleccionados de la biblioteca común o específica para PBB-"+pbb+".");const question=$("#claudeQuestion").value.trim();if(!question)throw Error("Escribe qué necesitas comprobar.");
-  button.disabled=true;button.textContent="Analizando…";answer.textContent="Enviando la consulta y los fragmentos indexados a Claude. Espera…";sources.innerHTML="";say("Consultando documentos seleccionados con Claude…");
+  button.disabled=true;button.textContent="Analizando…";answer.textContent="Enviando la consulta y los fragmentos indexados a Claude. Espera…";sources.innerHTML="";claudeProgress(12,"Consulta enviada a Claude","La función está recuperando y contrastando los fragmentos documentales. El servicio no proporciona porcentaje interno.",true);say("Consultando documentos seleccionados con Claude…");
   const {data,error}=await sb.functions.invoke("claude-diagnose",{body:{question,documentIds:ids,caseInfo:{pbb,documentLibrary:special?"A380_SPECIAL":"COMMON",order:$("#caseOrder").value,alarm:$("#caseAlarm").value,fieldObservations:$("#caseObs").value}}});
   if(error){let detail=error.message||"Error al llamar a la función.";try{const response=error.context;if(response&&typeof response.clone==="function"){const raw=await response.clone().text();let payload={};try{payload=JSON.parse(raw)}catch{}detail=payload.error||payload.message||raw.slice(0,1200)||detail;if(response.status===404)detail="La función claude-diagnose no está desplegada en este proyecto Supabase (HTTP 404).";if(response.status===401)detail="Sesión Supabase no válida o caducada. Cierra sesión y vuelve a iniciarla.";}}catch{}throw Error(detail)}
   if(data?.error)throw Error(data.error);if(!data?.answer)throw Error("La función se ejecutó, pero Claude no devolvió texto. Revisa los registros de Edge Functions.");
-  answer.textContent=data.answer;sources.innerHTML=(data.sources||[]).map(s=>`<li>${esc(s.document)} · Rev. ${esc(s.revision)} · Hoja/página ${esc(s.page)}</li>`).join("");window.dispatchEvent(new CustomEvent('pbb-claude-analysis-updated',{detail:{pbb,order:$("#caseOrder").value.trim(),orderId:$("#libraryOrderPicker")?.value||"",answer:data.answer,sources:(data.sources||[]).map(s=>`${s.document} · Rev. ${s.revision} · Hoja/página ${s.page}`)}}));say("Análisis recibido y asociado al caso. Verifica cada referencia contra el documento original.");
- }catch(e){const message=e?.message||String(e);answer.textContent="NO SE HA PODIDO REALIZAR EL ANÁLISIS\n\n"+message+"\n\nSi falta ANTHROPIC_API_KEY, configura ese secreto en Supabase. Si aparece 404, despliega claude-diagnose. Consulta los registros de Edge Functions para errores internos.";sources.innerHTML="";say("Error de análisis: "+message);answer.scrollIntoView({behavior:"smooth",block:"center"})}
+  claudeProgress(100,"Análisis recibido","Claude ha terminado. Se han recibido "+(data.sources||[]).length+" referencias documentales.");answer.textContent=data.answer;sources.innerHTML=(data.sources||[]).map(s=>`<li>${esc(s.document)} · Rev. ${esc(s.revision)} · Hoja/página ${esc(s.page)}</li>`).join("");window.dispatchEvent(new CustomEvent('pbb-claude-analysis-updated',{detail:{pbb,order:$("#caseOrder").value.trim(),orderId:$("#libraryOrderPicker")?.value||"",answer:data.answer,sources:(data.sources||[]).map(s=>`${s.document} · Rev. ${s.revision} · Hoja/página ${s.page}`)}}));say("Análisis recibido y asociado al caso. Verifica cada referencia contra el documento original.");
+ }catch(e){const message=e?.message||String(e);claudeProgress(0,"Análisis no completado",message);answer.textContent="NO SE HA PODIDO REALIZAR EL ANÁLISIS\n\n"+message+"\n\nSi falta ANTHROPIC_API_KEY, configura ese secreto en Supabase. Si aparece 404, despliega claude-diagnose. Consulta los registros de Edge Functions para errores internos.";sources.innerHTML="";say("Error de análisis: "+message);answer.scrollIntoView({behavior:"smooth",block:"center"})}
  finally{button.disabled=false;button.textContent="Analizar con Claude"}
 }
 async function refreshLibrarySession(event){const listNode=$("#docList");try{const c=getSupabaseClient();sb=c;if(event?.detail?.session)session=event.detail.session;else{const {data,error}=await c.auth.getSession();if(error)throw error;session=data.session;}if(!session){docs=[];if(listNode)listNode.innerHTML='<p class="sub">No hay una sesión activa. Abre Mi cuenta TKE e inicia sesión.</p>';return;}await list();}catch(e){const message=e?.message||String(e);if(listNode)listNode.innerHTML='<p class="sub">Error cargando documentos: '+esc(message)+'</p>';say("Biblioteca: "+message);}}
