@@ -410,3 +410,21 @@ html[data-theme="light"]{color-scheme:light}
 html[data-theme="light"] body{background:radial-gradient(ellipse at 8% 0%,#dceaf5 0,transparent 38%),linear-gradient(180deg,#eef3f8,#f7f9fb);color:#15263b}
 html[data-theme="light"] .theme-toggle{background:#ffffff18!important}
 @media(max-width:390px){.theme-toggle{flex-basis:38px!important;width:38px!important;height:38px!important}}
+
+
+/* 2.7.1 · Contrast correction for dark-theme document library and forms */
+html[data-theme="dark"] .step label,
+html[data-theme="dark"] .card label,
+html[data-theme="dark"] .account-sheet label{color:#d2deea!important}
+html[data-theme="dark"] .docrow b,
+html[data-theme="dark"] #docList .docrow b{color:#e7f0f8!important}
+html[data-theme="dark"] .docrow small,
+html[data-theme="dark"] #docList .docrow small{color:#aebfd0!important}
+html[data-theme="dark"] .upload-progress-head,
+html[data-theme="dark"] .upload-progress-note{color:#c4d3e1!important}
+html[data-theme="dark"] .title small{color:#b4c5d5}
+html[data-theme="dark"] .card .sub,
+html[data-theme="dark"] .panel .sub{color:#b2c2d1!important}
+html[data-theme="dark"] .warning p{color:#e0cfad}
+html[data-theme="dark"] .docrow{border-bottom-color:#344b60}
+html[data-theme="dark"] .docrow input[type="checkbox"]{accent-color:#25bce8}
