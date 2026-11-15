@@ -188,7 +188,7 @@ async function renderRcsPdfPage(){
  $("#rcsPdfPageNumber").value=String(rcsPdfPage);$("#rcsViewerPage").value=String(rcsPdfPage);$("#rcsPdfPageTotal").textContent="/ "+rcsPdfDoc.numPages;
  $("#rcsPdfPrev").disabled=rcsPdfPage<=1;$("#rcsPdfNext").disabled=rcsPdfPage>=rcsPdfDoc.numPages;
  $("#rcsPdfZoomValue").textContent=Math.round(scale*100)+"%";
- wrap.scrollLeft=0;
+ // Mantener la posición de desplazamiento tras redibujar la página.
 }
 async function openRcsViewer(page){
  await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);if(!d)throw Error("Selecciona un PDF de la biblioteca aplicable a esta posición.");
@@ -526,6 +526,52 @@ $("#sbRegister")?.addEventListener("click",async()=>{
 });
 $("#sbLogout")?.addEventListener("click",async()=>{try{const client=getSupabaseClient();await client.auth.signOut();session=null;docs=[];$("#docList").innerHTML="<p class=\"sub\">Inicia sesión para cargar el catálogo privado.</p>";say("Sesión cerrada.")}catch(e){say(e.message)}});
 $("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));
+
+// Gestos táctiles: desplazamiento con un dedo y zoom pinch con dos dedos.
+(()=>{
+ const wrap=$("#rcsPdfCanvasWrap");if(!wrap||wrap.dataset.gesturesReady)return;wrap.dataset.gesturesReady="1";
+ const pts=new Map();let mode="",startX=0,startY=0,startLeft=0,startTop=0,startDist=0,startScale=1,anchorX=0,anchorY=0,midX=0,midY=0,canvasOffsetX=0,canvasOffsetY=0;
+ const distance=()=>{const a=[...pts.values()];return Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)};
+ const midpoint=()=>{const a=[...pts.values()];return{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2}};
+ wrap.addEventListener("pointerdown",e=>{
+  if(e.pointerType!=="touch"&&e.button!==0)return;
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  try{wrap.setPointerCapture(e.pointerId)}catch{}
+  if(pts.size===1){mode="pan";startX=e.clientX;startY=e.clientY;startLeft=wrap.scrollLeft;startTop=wrap.scrollTop;}
+  else if(pts.size===2){
+   mode="pinch";const m=midpoint(),c=$("#rcsPdfCanvas"),r=c.getBoundingClientRect(),wr=wrap.getBoundingClientRect();
+   startDist=Math.max(1,distance());startScale=rcsPdfScale;midX=m.x-wr.left;midY=m.y-wr.top;
+   anchorX=m.x-r.left;anchorY=m.y-r.top;canvasOffsetX=c.offsetLeft;canvasOffsetY=c.offsetTop;
+   c.style.transformOrigin="0 0";c.style.transform="scale(1)";
+  }
+ },{passive:false});
+ wrap.addEventListener("pointermove",e=>{
+  if(!pts.has(e.pointerId))return;
+  pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(mode==="pan"&&pts.size===1){e.preventDefault();wrap.scrollLeft=startLeft-(e.clientX-startX);wrap.scrollTop=startTop-(e.clientY-startY);}
+  else if(mode==="pinch"&&pts.size>=2){
+   e.preventDefault();const factor=Math.max(.5,Math.min(4,distance()/startDist));
+   $("#rcsPdfCanvas").style.transform="scale("+factor+")";
+   const m=midpoint(),wr=wrap.getBoundingClientRect();
+   wrap.scrollLeft=Math.max(0,(canvasOffsetX+anchorX)*factor-(m.x-wr.left));
+   wrap.scrollTop=Math.max(0,(canvasOffsetY+anchorY)*factor-(m.y-wr.top));
+   $("#rcsPdfZoomValue").textContent=Math.round(startScale*factor*100)+"%";
+  }
+ },{passive:false});
+ const finish=async e=>{
+  if(!pts.has(e.pointerId))return;
+  pts.delete(e.pointerId);
+  if(mode==="pinch"&&pts.size<2){
+   const c=$("#rcsPdfCanvas"),factor=Math.max(.5,Math.min(4,parseFloat((c.style.transform.match(/scale\(([^)]+)\)/)||[])[1]||"1"));
+   c.style.transform="";rcsPdfScale=Math.max(.25,Math.min(5,startScale*factor));rcsPdfFitMode="manual";
+   const left=(canvasOffsetX+anchorX)*factor-midX,top=(canvasOffsetY+anchorY)*factor-midY;
+   try{await renderRcsPdfPage();wrap.scrollLeft=Math.max(0,left);wrap.scrollTop=Math.max(0,top)}catch(err){say(err.message)}
+   mode=pts.size?"pan":"";
+   if(pts.size===1){const v=[...pts.values()][0];startX=v.x;startY=v.y;startLeft=wrap.scrollLeft;startTop=wrap.scrollTop;}
+  }else if(!pts.size)mode="";
+ };
+ wrap.addEventListener("pointerup",finish);wrap.addEventListener("pointercancel",finish);wrap.addEventListener("lostpointercapture",finish);
+})();
 $("#rcsPdfPrev")?.addEventListener("click",()=>{if(rcsPdfDoc&&rcsPdfPage>1){rcsPdfPage--;renderRcsPdfPage().catch(e=>say(e.message))}});
 $("#rcsPdfNext")?.addEventListener("click",()=>{if(rcsPdfDoc&&rcsPdfPage<rcsPdfDoc.numPages){rcsPdfPage++;renderRcsPdfPage().catch(e=>say(e.message))}});
 $("#rcsPdfPageNumber")?.addEventListener("change",()=>{if(!rcsPdfDoc)return;const n=Math.max(1,Math.min(rcsPdfDoc.numPages,parseInt($("#rcsPdfPageNumber").value,10)||1));rcsPdfPage=n;renderRcsPdfPage().catch(e=>say(e.message))});
