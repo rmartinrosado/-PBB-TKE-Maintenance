@@ -174,8 +174,8 @@ async function renderRcsPdfPage(){
  if(rcsPdfRenderTask){const previous=rcsPdfRenderTask;try{previous.cancel()}catch{}try{await previous.promise}catch{}if(rcsPdfRenderTask===previous)rcsPdfRenderTask=null}
  const page=await rcsPdfDocument.getPage(rcsPdfPageNumber);
  const base=page.getViewport({scale:1});
- const available=Math.max(240,stage.clientWidth-24);
- rcsPdfBaseScale=available/base.width;
+ const availableWidth=Math.max(240,stage.clientWidth-24),availableHeight=Math.max(240,stage.clientHeight-24);
+ rcsPdfBaseScale=Math.min(availableWidth/base.width,availableHeight/base.height);
  const viewport=page.getViewport({scale:rcsPdfBaseScale*rcsViewerZoom});
  const dpr=Math.min(window.devicePixelRatio||1,2);
  canvas.width=Math.max(1,Math.floor(viewport.width*dpr));
