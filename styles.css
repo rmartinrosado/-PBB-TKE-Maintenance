@@ -443,3 +443,12 @@ html[data-theme="dark"] .docrow input[type="checkbox"]{accent-color:#25bce8}
 body.rcs-viewer-expanded{overflow:hidden!important}
 html[data-theme="light"] .rcs-pdf-stage{background:#e8eef4}
 @media(max-width:430px){.rcs-pdf-toolbar{justify-content:center;gap:5px;padding:7px 6px}.rcs-pdf-toolbar button{padding:7px 9px;font-size:10px}.rcs-pdf-toolbar strong{min-width:42px;font-size:11px}}
+
+
+/* 2.7.3 · Modo ampliado iOS: visor fuera de tarjetas y navegación inferior oculta */
+body.rcs-viewer-expanded{padding:0!important;overflow:hidden!important}
+body.rcs-viewer-expanded .field-bottom-nav{display:none!important}
+.rcs-pdf-frame-wrap.is-expanded{z-index:20000!important;position:fixed!important;top:0!important;right:0!important;bottom:0!important;left:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-height:none!important;min-height:0!important;margin:0!important;border:0!important;border-radius:0!important;overflow:hidden!important;display:flex!important;flex-direction:column!important}
+.rcs-pdf-frame-wrap.is-expanded .rcs-pdf-toolbar{position:relative!important;z-index:10!important;flex:0 0 auto!important;min-height:58px!important;padding:calc(8px + env(safe-area-inset-top)) 8px 8px!important;pointer-events:auto!important;touch-action:manipulation!important}
+.rcs-pdf-frame-wrap.is-expanded .rcs-pdf-stage{position:relative!important;z-index:1!important;flex:1 1 auto!important;width:100%!important;height:auto!important;min-height:0!important;overflow:auto!important;overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch!important;touch-action:pan-x pan-y!important}
+.rcs-pdf-frame-wrap.is-expanded .rcs-pdf-stage iframe{display:block!important;pointer-events:auto!important;max-width:none!important}
