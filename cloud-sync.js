@@ -1,6 +1,6 @@
 import { getSupabaseClient } from "./supabase-client.js?v=1.2.0";
 const $=s=>document.querySelector(s),KEY="pbb-tke-v6",CONFLICTS="pbb-sync-conflicts-v1";
-let busy=false;
+let busy=false,autoSyncTimer=null;
 const canonical=value=>{if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).filter(k=>k!=="updatedAt").sort().map(k=>[k,canonical(value[k])]));return value};
 const same=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
 function status(message,state="pending"){const n=$("#cloudSyncStatus");if(!n)return;n.textContent=message;n.classList.remove("is-pending","is-connected","is-error","is-dirty");n.classList.add("is-"+state);n.dataset.state=state}
@@ -31,5 +31,5 @@ async function sync(){if(busy)return;busy=true;const b=$("#cloudSyncNow");if(b)b
 async function refresh(){try{const {c,user}=await signed();const {count,error}=await c.from("maintenance_records").select("*",{count:"exact",head:true}).eq("user_id",user.id);if(error)throw error;const conflicts=readConflicts();renderConflictControl(conflicts);status("Conectado a Supabase · "+(count??0)+" registros privados en la nube"+(conflicts.length?" · "+conflicts.length+" conflictos pendientes de revisión":""),"connected")}catch(e){const message=e.message||String(e);const state=/Configura primero|No hay sesión activa/i.test(message)?"pending":"error";status(message,state)}}
 $("#cloudSyncNow")?.addEventListener("click",sync);$("#cloudRefresh")?.addEventListener("click",refresh);window.addEventListener("pbb-auth-state-changed",()=>refresh());
 window.addEventListener("pbb-supabase-config-changed",()=>refresh());
-window.addEventListener("pbb-local-data-changed",()=>status("Hay cambios locales pendientes de sincronizar.","dirty"));
+window.addEventListener("pbb-local-data-changed",()=>{status("Cambios locales detectados · sincronizando con Supabase…","dirty");if(autoSyncTimer)clearTimeout(autoSyncTimer);autoSyncTimer=setTimeout(()=>{autoSyncTimer=null;sync()},1200)});
 status("Comprobando configuración, sesión y tabla privada…","pending");renderConflictControl();refresh();
