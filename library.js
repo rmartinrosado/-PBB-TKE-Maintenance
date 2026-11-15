@@ -166,43 +166,12 @@ function populateRcsViewer(){
  select.innerHTML='<option value="">Selecciona un documento PDF</option>'+available.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.title)+' · Rev. '+esc(d.revision||"s/r")+'</option>').join("");
  if(available.some(d=>d.id===previous))select.value=previous;
 }
-let rcsPdfDoc=null,rcsPdfUrl="",rcsPdfPage=1,rcsPdfScale=1,rcsPdfRenderTask=null,rcsPdfFitMode="width";
-async function renderRcsPdfPage(){
- if(!rcsPdfDoc)return;
- const page=await rcsPdfDoc.getPage(rcsPdfPage),canvas=$("#rcsPdfCanvas"),wrap=$("#rcsPdfCanvasWrap"),ctx=canvas.getContext("2d",{alpha:false});
- if(rcsPdfRenderTask){try{rcsPdfRenderTask.cancel()}catch{}}
- const base=page.getViewport({scale:1}),cs=getComputedStyle(wrap);
- const padX=(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);
- const available=Math.max(160,wrap.clientWidth-padX-2);
- const fit=Math.max(.2,Math.min(2.5,available/base.width));
- const scale=rcsPdfFitMode==="width"?fit*rcsPdfScale:rcsPdfScale;
- const viewport=page.getViewport({scale}),dpr=Math.min(2,window.devicePixelRatio||1);
- const cssWidth=Math.ceil(viewport.width),cssHeight=Math.ceil(viewport.height);
- canvas.width=Math.round(cssWidth*dpr);canvas.height=Math.round(cssHeight*dpr);
- canvas.style.width=cssWidth+"px";canvas.style.height=cssHeight+"px";
- canvas.style.marginLeft=Math.max(0,Math.floor((available-cssWidth)/2))+"px";
- canvas.style.marginRight="0";
- ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle="#fff";ctx.fillRect(0,0,viewport.width,viewport.height);
- rcsPdfRenderTask=page.render({canvasContext:ctx,viewport});
- try{await rcsPdfRenderTask.promise}catch(e){if(e?.name!=="RenderingCancelledException")throw e}
- $("#rcsPdfPageNumber").value=String(rcsPdfPage);$("#rcsViewerPage").value=String(rcsPdfPage);$("#rcsPdfPageTotal").textContent="/ "+rcsPdfDoc.numPages;
- $("#rcsPdfPrev").disabled=rcsPdfPage<=1;$("#rcsPdfNext").disabled=rcsPdfPage>=rcsPdfDoc.numPages;
- $("#rcsPdfZoomValue").textContent=Math.round(scale*100)+"%";
- wrap.scrollLeft=0;
-}
 async function openRcsViewer(page){
  await ensure();const id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);if(!d)throw Error("Selecciona un PDF de la biblioteca aplicable a esta posición.");
  const n=Math.max(1,parseInt(page||$("#rcsViewerPage").value||"1",10)||1);
- const status=$("#rcsViewerStatus");status.textContent="Obteniendo acceso privado al PDF…";
  const {data,error}=await sb.storage.from("pbb-private-docs").createSignedUrl(d.storage_path,300);if(error)throw error;
- const pdfjs=await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs");
- pdfjs.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
- if(rcsPdfDoc?.destroy)try{await rcsPdfDoc.destroy()}catch{}
- rcsPdfUrl=data.signedUrl;rcsPdfDoc=await pdfjs.getDocument({url:rcsPdfUrl}).promise;
- if(n>rcsPdfDoc.numPages)throw Error("El PDF tiene "+rcsPdfDoc.numPages+" páginas; la solicitada es "+n+".");
- rcsPdfPage=n;rcsPdfScale=1;rcsPdfFitMode="width";$("#rcsViewerPage").value=String(n);
- $("#rcsPdfFrameWrap").classList.remove("hidden");$("#rcsPdfDocumentName").textContent=d.title;
- await renderRcsPdfPage();status.textContent="PDF privado abierto · "+d.title+" · "+rcsPdfDoc.numPages+" páginas. Usa los controles para navegar, ampliar y ajustar el plano.";
+ $("#rcsViewerPage").value=String(n);$("#rcsPdfFrame").src=data.signedUrl+"#page="+n+"&view=FitH";$("#rcsPdfFrameWrap").classList.remove("hidden");
+ $("#rcsViewerStatus").textContent="PDF privado abierto · "+d.title+" · página solicitada "+n+". El visor del navegador puede variar según dispositivo.";
 }
 async function ocrRcsCurrentPage(){
  const session=await ensure(),id=$("#rcsViewerDoc")?.value,d=docs.find(x=>x.id===id);
@@ -411,7 +380,7 @@ async function searchRcsReference(){
  const hits=(data||[]).filter(row=>{const content=String(row.content||"").toLocaleLowerCase("es");return terms.every(t=>content.includes(t))});
  if(!hits.length){status.textContent="Sin coincidencias en el texto indexado. Si el plano está escaneado, necesita OCR; también puede que la referencia use otra grafía.";return}
  out.innerHTML=hits.slice(0,40).map((row,i)=>{const content=String(row.content||""),low=content.toLocaleLowerCase("es"),at=low.indexOf(terms[0]),start=Math.max(0,at-140),excerpt=content.slice(start,Math.min(content.length,Math.max(at,0)+260));return '<button type="button" class="rcs-hit" data-rcs-page="'+esc(row.page_label||"1")+'"><b>Hoja / página '+esc(row.page_label||"No indicada")+'</b><span>'+esc(excerpt)+'</span></button>'}).join("");
- out.querySelectorAll("[data-rcs-page]").forEach(b=>b.addEventListener("click",()=>{const p=parseInt(b.dataset.rcsPage,10);if(Number.isFinite(p)){$("#rcsViewerPage").value=String(p);openRcsViewer(p).catch(e=>status.textContent=e.message);}}));
+ out.querySelectorAll("[data-rcs-page]").forEach(b=>b.addEventListener("click",()=>{const p=parseInt(b.dataset.rcsPage,10);if(Number.isFinite(p))openRcsViewer(p).catch(e=>status.textContent=e.message)}));
  status.textContent=hits.length+" coincidencia(s) en el índice. Pulsa un resultado para abrir esa página del PDF.";
 }
 
@@ -525,12 +494,5 @@ $("#sbRegister")?.addEventListener("click",async()=>{
  }catch(e){say("Error al crear usuario: "+(e.message||String(e)))}
 });
 $("#sbLogout")?.addEventListener("click",async()=>{try{const client=getSupabaseClient();await client.auth.signOut();session=null;docs=[];$("#docList").innerHTML="<p class=\"sub\">Inicia sesión para cargar el catálogo privado.</p>";say("Sesión cerrada.")}catch(e){say(e.message)}});
-$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));
-$("#rcsPdfPrev")?.addEventListener("click",()=>{if(rcsPdfDoc&&rcsPdfPage>1){rcsPdfPage--;renderRcsPdfPage().catch(e=>say(e.message))}});
-$("#rcsPdfNext")?.addEventListener("click",()=>{if(rcsPdfDoc&&rcsPdfPage<rcsPdfDoc.numPages){rcsPdfPage++;renderRcsPdfPage().catch(e=>say(e.message))}});
-$("#rcsPdfPageNumber")?.addEventListener("change",()=>{if(!rcsPdfDoc)return;const n=Math.max(1,Math.min(rcsPdfDoc.numPages,parseInt($("#rcsPdfPageNumber").value,10)||1));rcsPdfPage=n;renderRcsPdfPage().catch(e=>say(e.message))});
-$("#rcsPdfZoomIn")?.addEventListener("click",()=>{if(!rcsPdfDoc)return;rcsPdfScale=Math.min(3,rcsPdfScale*1.2);rcsPdfFitMode="manual";renderRcsPdfPage().catch(e=>say(e.message))});
-$("#rcsPdfZoomOut")?.addEventListener("click",()=>{if(!rcsPdfDoc)return;rcsPdfScale=Math.max(.4,rcsPdfScale/1.2);rcsPdfFitMode="manual";renderRcsPdfPage().catch(e=>say(e.message))});
-$("#rcsPdfFit")?.addEventListener("click",()=>{if(!rcsPdfDoc)return;rcsPdfScale=1;rcsPdfFitMode="width";renderRcsPdfPage().catch(e=>say(e.message))});
-window.addEventListener("resize",()=>{if(rcsPdfDoc&&rcsPdfFitMode==="width"){clearTimeout(window.__rcsResizeTimer);window.__rcsResizeTimer=setTimeout(()=>renderRcsPdfPage().catch(e=>say(e.message)),180)}});$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
+$("#docUpload").onclick=()=>upload().catch(e=>say(e.message));$("#claudeRun").onclick=()=>analyze().catch(e=>say(e.message));$("#rcsOpenViewer")?.addEventListener("click",()=>openRcsViewer().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsSearchReference")?.addEventListener("click",()=>searchRcsReference().catch(e=>$("#rcsViewerStatus").textContent=e.message));$("#rcsOcrPage")?.addEventListener("click",()=>ocrRcsCurrentPage().catch(e=>$("#rcsViewerStatus").textContent="OCR no completado: "+e.message));$("#casePbb")?.addEventListener("input",refreshDocChecks);$("#casePbb")?.addEventListener("change",refreshDocChecks);
 boot();installOrderPicker();
