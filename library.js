@@ -171,7 +171,7 @@ function rcsPdfCanvas(){return $("#rcsPdfCanvas")}
 async function renderRcsPdfPage(){
  if(!rcsPdfDocument)return;
  const stage=$("#rcsPdfStage"),canvas=rcsPdfCanvas();if(!stage||!canvas)return;
- if(rcsPdfRenderTask){try{rcsPdfRenderTask.cancel()}catch{}rcsPdfRenderTask=null}
+ if(rcsPdfRenderTask){const previous=rcsPdfRenderTask;try{previous.cancel()}catch{}try{await previous.promise}catch{}if(rcsPdfRenderTask===previous)rcsPdfRenderTask=null}
  const page=await rcsPdfDocument.getPage(rcsPdfPageNumber);
  const base=page.getViewport({scale:1});
  const available=Math.max(240,stage.clientWidth-24);
