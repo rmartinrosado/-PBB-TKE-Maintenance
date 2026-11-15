@@ -177,10 +177,19 @@ function setRcsViewerZoom(value){
  if(label)label.textContent=percent+"%";
  stage.scrollLeft=0;stage.scrollTop=0;
 }
+let rcsViewerPlaceholder=null;
 function toggleRcsViewerExpanded(force){
  const wrap=$("#rcsPdfFrameWrap"),button=$("#rcsExpandViewer");
  if(!wrap)return;
  const expanded=typeof force==="boolean"?force:!wrap.classList.contains("is-expanded");
+ if(expanded&&!rcsViewerPlaceholder){
+  rcsViewerPlaceholder=document.createComment("rcs-pdf-viewer-position");
+  wrap.parentNode.insertBefore(rcsViewerPlaceholder,wrap);
+  document.body.appendChild(wrap);
+ }else if(!expanded&&rcsViewerPlaceholder){
+  rcsViewerPlaceholder.parentNode.insertBefore(wrap,rcsViewerPlaceholder);
+  rcsViewerPlaceholder.remove();rcsViewerPlaceholder=null;
+ }
  wrap.classList.toggle("is-expanded",expanded);
  document.body.classList.toggle("rcs-viewer-expanded",expanded);
  if(button){button.textContent=expanded?"Reducir":"Ampliar";button.setAttribute("aria-pressed",String(expanded));}
