@@ -27,13 +27,13 @@
  set('#claudeQuestion',q);
  document.querySelector('#casePbb')?.dispatchEvent(new Event('change',{bubbles:true}));
  const status=document.querySelector('#libStatus');
- const savedAnswer=o.claudeAnalysis||diagnostic?.claudeAnalysis||'';
+ const savedAnswer=o.aiAnalysis||o.claudeAnalysis||diagnostic?.aiAnalysis||diagnostic?.claudeAnalysis||'';
  const answerNode=document.querySelector('#claudeAnswer');
  if(answerNode)answerNode.textContent=savedAnswer||'Esta OT todavía no tiene un análisis de Claude guardado.';
  const sourceItems=o.documentSources||diagnostic?.documentSources||[];
  const sourceNode=document.querySelector('#claudeSources');
  if(sourceNode)sourceNode.innerHTML=sourceItems.map(x=>'<li>'+esc(x)+'</li>').join('');
- if(status)status.textContent='OT '+(o.number||'—')+' · PBB-'+o.pbb+' cargada'+(diagnostic?' con diagnóstico recuperado.':'')+(savedAnswer?' Análisis Claude recuperado.':' Sin análisis Claude guardado.')+' Selecciona fuentes aplicables o consulta el análisis anterior.';
+ if(status)status.textContent='OT '+(o.number||'—')+' · PBB-'+o.pbb+' cargada'+(diagnostic?' con diagnóstico recuperado.':'')+(savedAnswer?' Análisis '+(o.aiEngine==='gemini'?'Gemini':'Claude')+' recuperado.':' Sin análisis IA guardado.')+' Selecciona fuentes aplicables o consulta el análisis anterior.';
 }
 window.PBB_fillLibraryFromOrder=fillLibraryFromOrder;
 document.addEventListener('change',e=>{if(e.target?.id==='libraryOrderPicker')fillLibraryFromOrder(e.target.value)});window.addEventListener('pbb-local-data-changed',refreshLibraryOrderPicker);window.addEventListener('pbb-cloud-data-merged',refreshLibraryOrderPicker);function save(){const now=new Date().toISOString();for(const group of ['orders','history'])db[group].forEach(r=>{if(!r.id)r.id=crypto.randomUUID();if(!persisted[group].has(r.id)||persisted[group].get(r.id)!==JSON.stringify(r))r.updatedAt=now});localStorage.setItem(KEY,JSON.stringify(db));for(const group of ['orders','history'])persisted[group]=new Map(db[group].map(r=>[r.id,JSON.stringify(r)]));window.PBB_DB=db;render();refreshLibraryOrderPicker();window.dispatchEvent(new CustomEvent('pbb-local-data-changed'))}function toast(s){const t=$('#toast');t.textContent=s;t.style.display='block';setTimeout(()=>t.style.display='none',2600)}
